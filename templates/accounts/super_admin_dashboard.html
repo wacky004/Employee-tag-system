@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Super Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Super Admin Dashboard</h1>
+                <p>Global controls for settings, rules, users, and reports.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} • {{ request.user.get_role_display }}</div>
+                <a href="/admin/" class="button secondary">Open Django Admin</a>
+                <a href="{% url 'logout' %}" class="button secondary">Logout</a>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Control center for the full system</h2>
+            <p>Super admins are redirected here so they can manage company-wide rules, users, reports, and attendance settings from one place.</p>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <h3>System Settings</h3>
+                <div class="stat">Global rules</div>
+                <p>Lunch, break, bio, late, timezone, and duplicate tagging rules belong here.</p>
+            </div>
+            <div class="card">
+                <h3>User Management</h3>
+                <div class="stat">Roles</div>
+                <p>Manage employees, admins, future TL assignments, and log editing permissions.</p>
+            </div>
+            <div class="card">
+                <h3>Reports</h3>
+                <div class="stat">Exports</div>
+                <p>Company-wide attendance summaries and Excel export shortcuts can be surfaced here.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

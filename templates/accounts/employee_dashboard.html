@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Dashboard{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Employee Dashboard</h1>
+                <p>Your personal tagging page will live here.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} • {{ request.user.get_role_display }}</div>
+                <a href="{% url 'logout' %}" class="button secondary">Logout</a>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Ready for personal attendance tagging</h2>
+            <p>This is the landing page for employees after login. The next build step can place the Time In, Lunch, Break, Bio, and Time Out buttons directly on this page.</p>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Current Destination</h3>
+                <div class="stat">Tagging</div>
+                <p>Employees are redirected here automatically after signing in.</p>
+            </div>
+            <div class="card">
+                <h3>Today’s Status</h3>
+                <div class="stat">Not tagged yet</div>
+                <p>We can connect this card to the latest AttendanceSession once the tagging flow is built.</p>
+            </div>
+            <div class="card">
+                <h3>Quick Actions</h3>
+                <p>Next we can place Time In, Lunch Out, Break Out, Bio Out, and related return actions here.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

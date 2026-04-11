@@ -1,16 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-</head>
-<body>
-    <h1>Attendance System Login</h1>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Sign In</button>
-    </form>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Login | Employee Tag System{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+    <div class="login-card">
+        <div class="pill">Role-aware sign in</div>
+        <h1>Employee Tag System</h1>
+        <p class="hint">Sign in to continue to your dashboard. Employees go to tagging, managers go to monitoring, and super admins go to system controls.</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="button">Sign In</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

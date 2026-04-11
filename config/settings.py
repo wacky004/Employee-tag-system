@@ -91,8 +91,9 @@ TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "Asia/Manila")
 USE_I18N = True
 USE_TZ = True
 AUTH_USER_MODEL = "accounts.User"
-LOGIN_REDIRECT_URL = "admin:index"
-LOGOUT_REDIRECT_URL = "login"
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "accounts:dashboard"
+LOGOUT_REDIRECT_URL = "accounts:login"
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [STATIC_DIR]
