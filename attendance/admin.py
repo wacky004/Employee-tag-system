@@ -5,9 +5,23 @@ from .models import AttendanceSession, CorrectionRequest, OverbreakRecord
 
 @admin.register(AttendanceSession)
 class AttendanceSessionAdmin(admin.ModelAdmin):
-    list_display = ("employee", "work_date", "current_status", "is_late", "total_work_minutes")
-    list_filter = ("current_status", "is_late", "work_date")
+    list_display = (
+        "employee",
+        "work_date",
+        "first_time_in",
+        "last_time_out",
+        "total_work_minutes",
+        "total_lunch_minutes",
+        "total_break_minutes",
+        "total_bio_minutes",
+        "total_overbreak_minutes",
+        "missing_tag_pairs_count",
+        "has_incomplete_records",
+        "is_late",
+    )
+    list_filter = ("current_status", "is_late", "has_incomplete_records", "work_date")
     search_fields = ("employee__username", "employee__first_name", "employee__last_name")
+    readonly_fields = ("summary_notes",)
 
 
 @admin.register(OverbreakRecord)

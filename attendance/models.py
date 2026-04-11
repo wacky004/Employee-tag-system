@@ -28,8 +28,15 @@ class AttendanceSession(models.Model):
     work_mode = models.CharField(max_length=10, blank=True)
     timezone_at_log = models.CharField(max_length=64, default="Asia/Manila")
     total_work_minutes = models.PositiveIntegerField(default=0)
+    total_lunch_minutes = models.PositiveIntegerField(default=0)
+    total_break_minutes = models.PositiveIntegerField(default=0)
+    total_bio_minutes = models.PositiveIntegerField(default=0)
+    total_overbreak_minutes = models.PositiveIntegerField(default=0)
     total_late_minutes = models.PositiveIntegerField(default=0)
     is_late = models.BooleanField(default=False)
+    missing_tag_pairs_count = models.PositiveIntegerField(default=0)
+    has_incomplete_records = models.BooleanField(default=False)
+    summary_notes = models.JSONField(default=list, blank=True)
     remarks = models.TextField(blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -40,6 +47,10 @@ class AttendanceSession(models.Model):
 
     def __str__(self):
         return f"{self.employee} - {self.work_date}"
+
+    @property
+    def final_time_out(self):
+        return self.last_time_out
 
 
 class OverbreakRecord(models.Model):
