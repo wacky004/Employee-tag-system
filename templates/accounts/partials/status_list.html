@@ -1,0 +1,29 @@
+{% if rows %}
+<div class="list">
+    {% for row in rows %}
+    <div class="list-item">
+        <div>
+            <strong>{{ row.employee_name }}</strong>
+            <p>{{ row.employee_code }} | {{ row.department }} | {{ row.team }} | {{ row.work_mode }}</p>
+            {% if row.summary_notes %}
+            <p>{{ row.summary_notes|join:", " }}</p>
+            {% endif %}
+        </div>
+        <div style="text-align: right;">
+            <div class="badge {% if row.is_overbreak %}warn{% else %}good{% endif %}">{{ row.status_label }}</div>
+            {% if row.first_time_in %}
+            <p>In: {{ row.first_time_in|date:"h:i A" }}</p>
+            {% endif %}
+            {% if row.final_time_out %}
+            <p>Out: {{ row.final_time_out|date:"h:i A" }}</p>
+            {% endif %}
+            {% if row.is_overbreak %}
+            <p>Overbreak: {{ row.total_overbreak_minutes }}m</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">{{ empty_message }}</div>
+{% endif %}

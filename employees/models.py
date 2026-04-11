@@ -2,10 +2,30 @@ from django.conf import settings
 from django.db import models
 
 
+class Department(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "departments"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Team(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True)
     description = models.TextField(blank=True)
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="teams",
+    )
     lead = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -32,6 +52,13 @@ class EmployeeProfile(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="employee_profile",
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees",
     )
     team = models.ForeignKey(
         Team,

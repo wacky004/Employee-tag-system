@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Team Monitoring Dashboard</h1>
-                <p>Managers and TLs land here after login.</p>
+                <p>Monitor attendance status, overbreaks, and incomplete logs from one place.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
@@ -21,23 +21,179 @@
 
         <section class="hero">
             <h2>Live team monitoring starts here</h2>
-            <p>This page is intended for team leads and managers to see who is working, on lunch, on break, on bio, or possibly overbreak.</p>
+            <p>Use the filters to narrow the view by team, department, date, employee, or work mode. The grouped lists below are driven by each employee's daily attendance summary.</p>
         </section>
 
-        <div class="grid">
-            <div class="card">
-                <h3>Team Status Board</h3>
-                <div class="stat">Coming next</div>
-                <p>We can list active team members and their latest attendance state here.</p>
+        <form method="get" class="card">
+            <div class="section-head">
+                <h3>Filters</h3>
+                <div class="actions">
+                    <a href="{% url 'accounts:manager-dashboard' %}" class="button ghost">Reset</a>
+                    <button type="submit" class="button">Apply Filters</button>
+                </div>
             </div>
-            <div class="card">
-                <h3>Overbreak Alerts</h3>
-                <div class="stat">0</div>
-                <p>This area can show flagged employees once overbreak detection is connected.</p>
+            <div class="filters">
+                <div class="field">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                </div>
+                <div class="field">
+                    <label for="department">Department</label>
+                    <select id="department" name="department">
+                        <option value="">All departments</option>
+                        {% for department in departments %}
+                        <option value="{{ department.id }}" {% if selected_department == department.id|stringformat:"s" %}selected{% endif %}>{{ department.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="team">Team</label>
+                    <select id="team" name="team">
+                        <option value="">All teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team.id }}" {% if selected_team == team.id|stringformat:"s" %}selected{% endif %}>{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="employee">Employee</label>
+                    <select id="employee" name="employee">
+                        <option value="">All employees</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.user_id }}" {% if selected_employee == employee.user_id|stringformat:"s" %}selected{% endif %}>{{ employee.user.get_full_name|default:employee.user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="work_mode">Work Mode</label>
+                    <select id="work_mode" name="work_mode">
+                        <option value="">All work modes</option>
+                        <option value="ONSITE" {% if selected_work_mode == "ONSITE" %}selected{% endif %}>Onsite</option>
+                        <option value="WFH" {% if selected_work_mode == "WFH" %}selected{% endif %}>WFH</option>
+                    </select>
+                </div>
             </div>
-            <div class="card">
-                <h3>Attendance Summary</h3>
-                <p>Daily attendance totals, late counts, and export shortcuts can be added to this dashboard.</p>
+        </form>
+
+        <div class="mini-grid">
+            <div class="mini-card"><h4>Currently Working</h4><div class="value">{{ summary_counts.working }}</div></div>
+            <div class="mini-card"><h4>On Lunch</h4><div class="value">{{ summary_counts.lunch }}</div></div>
+            <div class="mini-card"><h4>On Break</h4><div class="value">{{ summary_counts.break }}</div></div>
+            <div class="mini-card"><h4>On Bio</h4><div class="value">{{ summary_counts.bio }}</div></div>
+            <div class="mini-card"><h4>Not Timed In</h4><div class="value">{{ summary_counts.not_timed_in }}</div></div>
+            <div class="mini-card"><h4>Overbreak</h4><div class="value">{{ summary_counts.overbreak }}</div></div>
+            <div class="mini-card"><h4>Timed Out</h4><div class="value">{{ summary_counts.timed_out }}</div></div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Status Buckets</h3>
+                        <span class="muted">{{ selected_date|date:"F j, Y" }}</span>
+                    </div>
+
+                    <div class="section-head">
+                        <h3>Currently Logged In</h3>
+                        <span class="badge good">{{ currently_logged_in|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=currently_logged_in empty_message="No employees are currently working for the selected filters." %}
+
+                    <div class="section-head" style="margin-top: 18px;">
+                        <h3>On Lunch</h3>
+                        <span class="badge">{{ on_lunch|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=on_lunch empty_message="No employees are currently on lunch." %}
+
+                    <div class="section-head" style="margin-top: 18px;">
+                        <h3>On Break</h3>
+                        <span class="badge">{{ on_break|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=on_break empty_message="No employees are currently on break." %}
+
+                    <div class="section-head" style="margin-top: 18px;">
+                        <h3>On Bio</h3>
+                        <span class="badge">{{ on_bio|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=on_bio empty_message="No employees are currently on bio." %}
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>All Matching Employees</h3>
+                        <span class="muted">{{ employee_rows|length }} result{{ employee_rows|length|pluralize }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Department</th>
+                                    <th>Team</th>
+                                    <th>Mode</th>
+                                    <th>Status</th>
+                                    <th>Time In</th>
+                                    <th>Time Out</th>
+                                    <th>Flags</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in employee_rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.employee_name }}</strong>
+                                        <div class="muted">{{ row.employee_code }} • {{ row.job_title }}</div>
+                                    </td>
+                                    <td>{{ row.department }}</td>
+                                    <td>{{ row.team }}</td>
+                                    <td>{{ row.work_mode }}</td>
+                                    <td>{{ row.status_label }}</td>
+                                    <td>{% if row.first_time_in %}{{ row.first_time_in|date:"h:i A" }}{% else %}-{% endif %}</td>
+                                    <td>{% if row.final_time_out %}{{ row.final_time_out|date:"h:i A" }}{% else %}-{% endif %}</td>
+                                    <td>
+                                        {% if row.is_overbreak %}
+                                        <span class="badge warn">Overbreak {{ row.total_overbreak_minutes }}m</span>
+                                        {% endif %}
+                                        {% if row.has_incomplete_records %}
+                                        <div class="muted">{{ row.missing_tag_pairs_count }} missing pair{{ row.missing_tag_pairs_count|pluralize }}</div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="muted">No employees matched the current filters.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Overbreak</h3>
+                        <span class="badge warn">{{ overbreak_rows|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=overbreak_rows empty_message="No overbreak employees for the selected filters." %}
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Not Timed In</h3>
+                        <span class="badge">{{ not_timed_in|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=not_timed_in empty_message="Everyone in this filtered view has timed in already." %}
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Timed Out</h3>
+                        <span class="badge">{{ timed_out|length }}</span>
+                    </div>
+                    {% include "accounts/partials/status_list.html" with rows=timed_out empty_message="No employees have timed out yet for the selected date." %}
+                </div>
             </div>
         </div>
     </div>
