@@ -15,6 +15,10 @@ class Team(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        db_table = "teams"
+        ordering = ["name"]
+
     def __str__(self):
         return self.name
 
@@ -46,6 +50,10 @@ class EmployeeProfile(models.Model):
     )
     hire_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "employee_profiles"
+        ordering = ["employee_code"]
 
     def __str__(self):
         return f"{self.employee_code} - {self.user}"

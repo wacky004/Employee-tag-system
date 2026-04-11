@@ -17,5 +17,35 @@ class SystemSetting(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        db_table = "system_settings"
+
     def __str__(self):
         return "System Settings"
+
+
+class Announcement(models.Model):
+    class Audience(models.TextChoices):
+        ALL = "ALL", "All Users"
+        EMPLOYEES = "EMPLOYEES", "Employees"
+        ADMINS = "ADMINS", "Admins and Managers"
+
+    title = models.CharField(max_length=150)
+    body = models.TextField()
+    audience = models.CharField(
+        max_length=20,
+        choices=Audience.choices,
+        default=Audience.ALL,
+    )
+    is_active = models.BooleanField(default=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "announcements"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title

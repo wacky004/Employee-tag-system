@@ -22,6 +22,7 @@ class TagType(models.Model):
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
+        db_table = "tag_types"
         ordering = ["sort_order", "id"]
 
     def __str__(self):
@@ -65,6 +66,7 @@ class TagLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "tag_logs"
         ordering = ["-timestamp", "-id"]
 
     def __str__(self):

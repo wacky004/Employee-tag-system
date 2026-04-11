@@ -34,6 +34,7 @@ class AttendanceSession(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = "attendance_sessions"
         unique_together = ("employee", "work_date")
         ordering = ["-work_date", "employee_id"]
 
@@ -84,6 +85,7 @@ class OverbreakRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "overbreak_records"
         ordering = ["-created_at"]
 
     def __str__(self):
@@ -133,6 +135,7 @@ class CorrectionRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = "correction_requests"
         ordering = ["-created_at"]
 
     def __str__(self):
