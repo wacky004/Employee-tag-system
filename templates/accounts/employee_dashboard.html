@@ -11,8 +11,11 @@
                 <p>Your personal tagging page will live here.</p>
             </div>
             <div class="actions">
-                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} • {{ request.user.get_role_display }}</div>
-                <a href="{% url 'logout' %}" class="button secondary">Logout</a>
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
             </div>
         </div>
 
@@ -28,7 +31,7 @@
                 <p>Employees are redirected here automatically after signing in.</p>
             </div>
             <div class="card">
-                <h3>Today’s Status</h3>
+                <h3>Today's Status</h3>
                 <div class="stat">Not tagged yet</div>
                 <p>We can connect this card to the latest AttendanceSession once the tagging flow is built.</p>
             </div>

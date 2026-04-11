@@ -11,8 +11,11 @@
                 <p>Managers and TLs land here after login.</p>
             </div>
             <div class="actions">
-                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} • {{ request.user.get_role_display }}</div>
-                <a href="{% url 'logout' %}" class="button secondary">Logout</a>
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
             </div>
         </div>
 
