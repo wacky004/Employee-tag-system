@@ -24,7 +24,7 @@
             <div class="hero-layout">
                 <div>
                     <h2>Personal attendance tagging</h2>
-                    <p>Before the shift starts, only `Time In` is shown. After time in, the three live controls for lunch, break, and bio appear with remaining-time indicators, while `Time Out` stays available.</p>
+                    <p>The three controls for lunch, break, and bio are always visible. If none of them are active, that means the employee is currently working.</p>
                 </div>
                 <div class="clock-panel">
                     <div class="live-time" id="live-clock-time">00:00:00</div>
@@ -184,7 +184,6 @@
             </div>
             {% endif %}
 
-            {% if has_timed_in and not has_timed_out %}
             <div class="control-grid">
                 {% for control in tag_controls %}
                 <div class="control-card {% if control.active %}active{% endif %}">
@@ -196,20 +195,27 @@
                     <p>Used: {{ control.consumed_minutes }} min</p>
                     {% if control.active %}
                     <p class="countdown" data-remaining-seconds="{{ control.remaining_seconds }}">00:00:00 left</p>
+                    {% elif has_timed_in and not has_timed_out %}
+                    <p class="muted">Not active. Employee is working.</p>
+                    {% elif has_timed_out %}
+                    <p class="muted">Shift ended for today.</p>
                     {% else %}
-                    <p class="muted">Ready to start.</p>
+                    <p class="muted">Time In first to activate this control.</p>
                     {% endif %}
                     <form method="post" class="button-form" style="margin-top: 10px;">
                         {% csrf_token %}
                         <input type="hidden" name="tag_action" value="{{ control.code }}">
-                        <button type="submit" class="button {% if control.active %}danger{% endif %}">
+                        <button
+                            type="submit"
+                            class="button {% if control.active %}danger{% elif not has_timed_in or has_timed_out %}secondary{% endif %}"
+                            {% if not has_timed_in or has_timed_out %}disabled{% endif %}
+                        >
                             {{ control.button_label }}
                         </button>
                     </form>
                 </div>
                 {% endfor %}
             </div>
-            {% endif %}
         </div>
 
         <div class="card" style="margin-top: 18px;">
