@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "attendance",
     "auditlogs",
     "core",
+    "reports",
 ]
 
 MIDDLEWARE = [

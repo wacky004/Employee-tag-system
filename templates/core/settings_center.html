@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Settings Center{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Super Admin Settings</h1>
+                <p>Manage rules, teams, roles, employee profiles, work setup, and permissions without touching code.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Dashboard</a>
+                <a href="/admin/" class="button secondary">Open Django Admin</a>
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Flexible control panel for the attendance system</h2>
+            <p>Change durations, grace periods, correction permissions, teams, roles, and employee work setup from one page.</p>
+        </section>
+
+        <div class="dashboard-grid">
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>System Rules</h3>
+                        <span class="muted">Breaks, lunch, bio, grace, permissions, work setup</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="system-settings">
+                        <div class="filters">
+                            {% for field in system_form %}
+                            <div class="field">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="muted">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="actions">
+                            <button type="submit" class="button">Save System Settings</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Employee Profile Management</h3>
+                        <span class="muted">{% if editing_profile %}Editing {{ editing_profile.employee_code }}{% else %}Create or update profiles{% endif %}</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="employee-profile">
+                        {% if editing_profile %}
+                        <input type="hidden" name="profile_id" value="{{ editing_profile.id }}">
+                        {% endif %}
+                        <div class="filters">
+                            {% for field in employee_profile_form %}
+                            <div class="field">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="muted">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="actions">
+                            <button type="submit" class="button">{% if editing_profile %}Update Profile{% else %}Save Profile{% endif %}</button>
+                            {% if editing_profile %}
+                            <a href="{% url 'core:settings' %}" class="button ghost">Cancel Edit</a>
+                            {% endif %}
+                        </div>
+                    </form>
+
+                    <div class="section-head" style="margin-top: 22px;">
+                        <h3>Existing Employee Profiles</h3>
+                        <span class="muted">{{ employee_profiles|length }} profile{{ employee_profiles|length|pluralize }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Code</th>
+                                    <th>Department</th>
+                                    <th>Team</th>
+                                    <th>Work Setup</th>
+                                    <th>Timezone</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for profile in employee_profiles %}
+                                <tr>
+                                    <td>{{ profile.user.get_full_name|default:profile.user.username }}</td>
+                                    <td>{{ profile.employee_code }}</td>
+                                    <td>{{ profile.department.name|default:"-" }}</td>
+                                    <td>{{ profile.team.name|default:"-" }}</td>
+                                    <td>{{ profile.get_default_work_mode_display }}</td>
+                                    <td>{{ profile.timezone }}</td>
+                                    <td>{% if profile.is_active %}Active{% else %}Inactive{% endif %}</td>
+                                    <td><a href="?edit_profile={{ profile.id }}" class="button ghost">Edit</a></td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="8" class="muted">No employee profiles yet.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Departments</h3>
+                        <span class="muted">{{ departments|length }} total</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="department">
+                        <div class="filters">
+                            {% for field in department_form %}
+                            <div class="field">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="muted">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="button">Add Department</button>
+                    </form>
+                    <div class="list" style="margin-top: 16px;">
+                        {% for department in departments %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ department.name }}</strong>
+                                <p>{{ department.code }}</p>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No departments configured yet.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Teams</h3>
+                        <span class="muted">{{ teams|length }} total</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="team">
+                        <div class="filters">
+                            {% for field in team_form %}
+                            <div class="field">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="muted">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="button">Add Team</button>
+                    </form>
+                    <div class="list" style="margin-top: 16px;">
+                        {% for team in teams %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ team.name }}</strong>
+                                <p>{{ team.code }} | {{ team.department.name|default:"No department" }}</p>
+                            </div>
+                            <div class="badge">{% if team.lead %}{{ team.lead.get_full_name|default:team.lead.username }}{% else %}No lead{% endif %}</div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No teams configured yet.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Roles</h3>
+                        <span class="muted">{{ roles|length }} total</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="role">
+                        <div class="filters">
+                            {% for field in role_form %}
+                            <div class="field">
+                                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                <div class="muted">{{ field.errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="button">Add Role</button>
+                    </form>
+                    <div class="list" style="margin-top: 16px;">
+                        {% for role in roles %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ role.name }}</strong>
+                                <p>{{ role.code }}</p>
+                            </div>
+                            <div class="badge {% if role.is_active %}good{% else %}warn{% endif %}">
+                                {% if role.is_active %}Active{% else %}Inactive{% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No roles configured yet.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

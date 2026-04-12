@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load report_extras %}
+
+{% block title %}Reports Center{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Reports Center</h1>
+                <p>Daily, weekly, monthly, exception, and HR-style attendance reporting.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary">Back to Dashboard</a>
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'export' and key != 'print' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}print=1" class="button ghost" target="_blank">Printable View</a>
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'export' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}export=csv" class="button ghost">Export CSV</a>
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'export' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}export=xlsx" class="button">Export Excel</a>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>{{ dataset.title }}</h2>
+            <p>{{ dataset.subtitle }}</p>
+        </section>
+
+        {% if not print_mode %}
+        <form method="get" class="card">
+            <div class="section-head">
+                <h3>Report Filters</h3>
+                <div class="actions">
+                    <a href="{% url 'reports:center' %}" class="button ghost">Reset</a>
+                    <button type="submit" class="button">Run Report</button>
+                </div>
+            </div>
+            <div class="filters">
+                <div class="field">
+                    <label for="report">Report</label>
+                    <select id="report" name="report">
+                        {% for key, label in report_choices.items %}
+                        <option value="{{ key }}" {% if filters.report_type == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" name="date" value="{{ filters.date|date:'Y-m-d' }}">
+                </div>
+                <div class="field">
+                    <label for="start_date">Start Date</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ filters.start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="field">
+                    <label for="end_date">End Date</label>
+                    <input type="date" id="end_date" name="end_date" value="{{ filters.end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="field">
+                    <label for="department">Department</label>
+                    <select id="department" name="department">
+                        <option value="">All departments</option>
+                        {% for department in departments %}
+                        <option value="{{ department.id }}" {% if filters.department == department.id|stringformat:"s" %}selected{% endif %}>{{ department.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="team">Team</label>
+                    <select id="team" name="team">
+                        <option value="">All teams</option>
+                        {% for team in teams %}
+                        <option value="{{ team.id }}" {% if filters.team == team.id|stringformat:"s" %}selected{% endif %}>{{ team.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="employee">Employee</label>
+                    <select id="employee" name="employee">
+                        <option value="">All employees</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.user_id }}" {% if filters.employee == employee.user_id|stringformat:"s" %}selected{% endif %}>{{ employee.user.get_full_name|default:employee.user.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="work_mode">Work Mode</label>
+                    <select id="work_mode" name="work_mode">
+                        <option value="">All work modes</option>
+                        <option value="ONSITE" {% if filters.work_mode == "ONSITE" %}selected{% endif %}>Onsite</option>
+                        <option value="WFH" {% if filters.work_mode == "WFH" %}selected{% endif %}>WFH</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>{{ dataset.rows|length }} row{{ dataset.rows|length|pluralize }}</h3>
+                <span class="muted">{{ dataset.title }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for column in dataset.columns %}
+                            <th>{{ column }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in dataset.rows %}
+                        <tr>
+                            {% for key in dataset.column_keys %}
+                            <td>{{ row|get_item:key }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ dataset.columns|length }}" class="muted">No records found for the selected report and filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

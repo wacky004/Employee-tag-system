@@ -12,6 +12,8 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'core:settings' %}" class="button secondary">Settings</a>
+                <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}
@@ -29,7 +31,7 @@
             <div class="card">
                 <h3>System Settings</h3>
                 <div class="stat">Global rules</div>
-                <p>Lunch, break, bio, late, timezone, and duplicate tagging rules belong here.</p>
+                <p>Lunch, break, bio, late, timezone, work setup, and correction permissions live in the new settings center.</p>
             </div>
             <div class="card">
                 <h3>User Management</h3>
