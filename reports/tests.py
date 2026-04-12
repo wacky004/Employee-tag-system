@@ -71,6 +71,8 @@ class ReportCenterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Daily Attendance Report")
         self.assertContains(response, "Jamie Rivera")
+        self.assertContains(response, "07:30:00")
+        self.assertContains(response, "01:00:00")
 
     def test_report_center_csv_export(self):
         self.client.login(username="manager-report", password="password123")

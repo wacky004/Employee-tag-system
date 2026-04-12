@@ -128,12 +128,12 @@ def _daily_report(filters):
             "Date",
             "Time In",
             "Time Out",
-            "Work Minutes",
-            "Lunch",
-            "Break",
-            "Bio",
-            "Late",
-            "Overbreak",
+            "Work Duration",
+            "Lunch Duration",
+            "Break Duration",
+            "Bio Duration",
+            "Late Duration",
+            "Overbreak Duration",
             "Missing Pairs",
             "Incomplete",
         ],
@@ -402,12 +402,12 @@ def _session_row(session):
         "work_date": session.work_date.isoformat(),
         "first_time_in": _format_datetime(session.first_time_in),
         "last_time_out": _format_datetime(session.last_time_out),
-        "total_work_minutes": session.total_work_minutes,
-        "total_lunch_minutes": session.total_lunch_minutes,
-        "total_break_minutes": session.total_break_minutes,
-        "total_bio_minutes": session.total_bio_minutes,
-        "total_late_minutes": session.total_late_minutes,
-        "total_overbreak_minutes": session.total_overbreak_minutes,
+        "total_work_minutes": _format_duration_minutes(session.total_work_minutes),
+        "total_lunch_minutes": _format_duration_minutes(session.total_lunch_minutes),
+        "total_break_minutes": _format_duration_minutes(session.total_break_minutes),
+        "total_bio_minutes": _format_duration_minutes(session.total_bio_minutes),
+        "total_late_minutes": _format_duration_minutes(session.total_late_minutes),
+        "total_overbreak_minutes": _format_duration_minutes(session.total_overbreak_minutes),
         "missing_tag_pairs_count": session.missing_tag_pairs_count,
         "has_incomplete_records": "Yes" if session.has_incomplete_records else "No",
     }
@@ -458,3 +458,12 @@ def _parse_date(value):
 def _required_work_minutes():
     settings = SystemSetting.objects.order_by("-updated_at").first()
     return getattr(settings, "required_work_minutes", DEFAULT_REQUIRED_WORK_MINUTES) if settings else DEFAULT_REQUIRED_WORK_MINUTES
+
+
+def _format_duration_minutes(minutes):
+    total_seconds = int((minutes or 0) * 60)
+    hours = total_seconds // 3600
+    remainder = total_seconds % 3600
+    mins = remainder // 60
+    secs = remainder % 60
+    return f"{hours:02d}:{mins:02d}:{secs:02d}"
