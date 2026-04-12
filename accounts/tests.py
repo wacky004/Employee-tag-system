@@ -103,8 +103,10 @@ class EmployeeDashboardTaggingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         buttons = {item["code"]: item["enabled"] for item in response.context["tag_buttons"]}
-        self.assertTrue(buttons["TIME_IN"])
-        self.assertFalse(buttons["TIME_OUT"])
+        self.assertTrue(response.context["time_in_button"]["enabled"])
+        self.assertTrue(response.context["time_in_button"]["visible"])
+        self.assertFalse(response.context["time_out_button"]["visible"])
+        self.assertFalse(buttons["LUNCH_OUT"])
         self.assertEqual(response.context["current_status"], "Not Tagged Yet")
 
     def test_employee_dashboard_post_creates_tag_log_and_updates_session(self):

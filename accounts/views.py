@@ -59,12 +59,12 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     TAG_BUTTONS = (
         ("TIME_IN", "Time In"),
         ("TIME_OUT", "Time Out"),
-        ("LUNCH_OUT", "Lunch Out"),
-        ("LUNCH_IN", "Lunch In"),
-        ("BREAK_OUT", "Break Out"),
-        ("BREAK_IN", "Break In"),
-        ("BIO_OUT", "Bio Out"),
-        ("BIO_IN", "Bio In"),
+        ("LUNCH_OUT", "Lunch Start"),
+        ("LUNCH_IN", "Lunch End"),
+        ("BREAK_OUT", "Break Start"),
+        ("BREAK_IN", "Break End"),
+        ("BIO_OUT", "Bio Start"),
+        ("BIO_IN", "Bio End"),
     )
 
     def post(self, request, *args, **kwargs):
@@ -98,6 +98,16 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
         except ObjectDoesNotExist:
             default_work_mode = ""
 
+        has_timed_in = bool(session and session.first_time_in and not session.last_time_out)
+        has_timed_out = bool(session and session.last_time_out)
+        active_aux_code = latest_tag if latest_tag in {"LUNCH_OUT", "BREAK_OUT", "BIO_OUT"} else ""
+        active_aux_label = {
+            "LUNCH_OUT": "Lunch In Progress",
+            "BREAK_OUT": "Break In Progress",
+            "BIO_OUT": "Bio In Progress",
+        }.get(active_aux_code, "")
+        active_aux_started_at = tag_history[0].timestamp if active_aux_code else None
+
         context.update(
             {
                 "work_date": work_date,
@@ -106,11 +116,29 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
                 "latest_tag_code": latest_tag,
                 "latest_tag_label": latest_tag_label,
                 "default_work_mode": default_work_mode,
+                "time_in_button": {
+                    "code": "TIME_IN",
+                    "label": "Time In",
+                    "enabled": "TIME_IN" in valid_codes,
+                    "visible": not has_timed_in or has_timed_out,
+                },
+                "time_out_button": {
+                    "code": "TIME_OUT",
+                    "label": "Time Out",
+                    "enabled": "TIME_OUT" in valid_codes,
+                    "visible": has_timed_in and not has_timed_out,
+                },
                 "tag_buttons": [
                     {"code": code, "label": label, "enabled": code in valid_codes}
                     for code, label in self.TAG_BUTTONS
+                    if code not in {"TIME_IN", "TIME_OUT"}
                 ],
                 "tag_history": tag_history,
+                "has_timed_in": has_timed_in,
+                "has_timed_out": has_timed_out,
+                "active_aux_code": active_aux_code,
+                "active_aux_label": active_aux_label,
+                "active_aux_started_at": active_aux_started_at,
             }
         )
         return context

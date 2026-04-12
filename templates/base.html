@@ -170,6 +170,11 @@
             cursor: not-allowed;
         }
 
+        .button.danger {
+            background: #c1121f;
+            color: #fff;
+        }
+
         .button-form {
             margin: 0;
         }
@@ -319,6 +324,29 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 12px;
+        }
+
+        .status-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 20px;
+            border-radius: 18px;
+            border: 1px solid rgba(193, 18, 31, 0.18);
+            background: rgba(193, 18, 31, 0.08);
+            color: #7f1d1d;
+        }
+
+        .status-banner strong {
+            font-size: 1.1rem;
+        }
+
+        .timer {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #9f1239;
+            white-space: nowrap;
         }
 
         table {

@@ -22,7 +22,7 @@
 
         <section class="hero">
             <h2>Personal attendance tagging</h2>
-            <p>Use the available buttons below to record your attendance actions for {{ work_date|date:"F j, Y" }}. Buttons are enabled based on your latest valid tag for today.</p>
+            <p>Use the buttons below to record your attendance actions for {{ work_date|date:"F j, Y" }}. Before the shift starts, only `Time In` is shown. After time in, the dashboard reveals `Time Out` plus the six start/end controls for lunch, break, and bio.</p>
         </section>
 
         <div class="grid">
@@ -44,22 +44,62 @@
             </div>
         </div>
 
+        {% if active_aux_code and active_aux_started_at %}
+        <div class="status-banner" style="margin-top: 18px;">
+            <div>
+                <strong>{{ active_aux_label }}</strong>
+                <p class="muted" style="margin: 6px 0 0;">Started at {{ active_aux_started_at|date:"h:i:s A" }}</p>
+            </div>
+            <div class="timer" data-start-time="{{ active_aux_started_at|date:'c' }}">00:00:00</div>
+        </div>
+        {% endif %}
+
         <div class="card" style="margin-top: 18px;">
             <div class="section-head">
                 <h3>Tagging Buttons</h3>
                 <span class="muted">{{ work_date|date:"F j, Y" }}</span>
             </div>
+            {% if time_in_button.visible %}
+            <div class="actions" style="margin-top: 0; margin-bottom: 14px;">
+                <form method="post" class="button-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="tag_action" value="{{ time_in_button.code }}">
+                    <button type="submit" class="button" {% if not time_in_button.enabled %}disabled{% endif %}>
+                        {{ time_in_button.label }}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if time_out_button.visible %}
+            <div class="actions" style="margin-top: 0; margin-bottom: 14px;">
+                <form method="post" class="button-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="tag_action" value="{{ time_out_button.code }}">
+                    <button type="submit" class="button {% if time_out_button.enabled %}danger{% else %}secondary{% endif %}" {% if not time_out_button.enabled %}disabled{% endif %}>
+                        {{ time_out_button.label }}
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+
+            {% if has_timed_in and not has_timed_out %}
             <div class="tag-grid">
                 {% for item in tag_buttons %}
                 <form method="post" class="button-form">
                     {% csrf_token %}
                     <input type="hidden" name="tag_action" value="{{ item.code }}">
-                    <button type="submit" class="button {% if not item.enabled %}secondary{% endif %}" {% if not item.enabled %}disabled{% endif %}>
+                    <button
+                        type="submit"
+                        class="button {% if item.code == active_aux_code %}danger{% elif not item.enabled %}secondary{% endif %}"
+                        {% if not item.enabled %}disabled{% endif %}
+                    >
                         {{ item.label }}
                     </button>
                 </form>
                 {% endfor %}
             </div>
+            {% endif %}
         </div>
 
         <div class="card" style="margin-top: 18px;">
@@ -98,4 +138,27 @@
         </div>
     </div>
 </div>
+{% if active_aux_code and active_aux_started_at %}
+<script>
+    (function () {
+        const timer = document.querySelector("[data-start-time]");
+        if (!timer) return;
+
+        const startTime = new Date(timer.getAttribute("data-start-time"));
+        if (Number.isNaN(startTime.getTime())) return;
+
+        function renderTimer() {
+            const elapsedMs = Date.now() - startTime.getTime();
+            const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+            const seconds = String(totalSeconds % 60).padStart(2, "0");
+            timer.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        renderTimer();
+        window.setInterval(renderTimer, 1000);
+    }());
+</script>
+{% endif %}
 {% endblock %}
