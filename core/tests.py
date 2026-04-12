@@ -36,6 +36,7 @@ class SuperAdminSettingsTests(TestCase):
                 "company_name": "My Attendance System",
                 "default_timezone": "Asia/Manila",
                 "required_work_minutes": 510,
+                "time_in_cooldown_hours": 6,
                 "lunch_minutes_allowed": 50,
                 "break_minutes_allowed": 20,
                 "bio_minutes_allowed": 12,
@@ -55,6 +56,7 @@ class SuperAdminSettingsTests(TestCase):
         setting = SystemSetting.objects.get()
         self.assertEqual(setting.company_name, "My Attendance System")
         self.assertEqual(setting.required_work_minutes, 510)
+        self.assertEqual(setting.time_in_cooldown_hours, 6)
         self.assertEqual(setting.lunch_minutes_allowed, 50)
         self.assertEqual(setting.late_grace_minutes, 5)
 

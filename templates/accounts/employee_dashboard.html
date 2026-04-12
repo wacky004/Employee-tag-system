@@ -41,15 +41,19 @@
         {% if selected_tab == "history" %}
         <div class="card">
             <div class="section-head">
-                <h3>Search Time In / Time Out by Date</h3>
-                <span class="muted">Pick a date to view and correct your shift logs.</span>
+                <h3>Search Time In / Time Out by Date Range</h3>
+                <span class="muted">Pick one or more dates to view and correct your shift logs.</span>
             </div>
             <form method="get">
                 <input type="hidden" name="tab" value="history">
                 <div class="filters">
                     <div class="field">
-                        <label for="history_date">Date</label>
-                        <input type="date" id="history_date" name="history_date" value="{{ history_date|date:'Y-m-d' }}">
+                        <label for="history_start_date">Start Date</label>
+                        <input type="date" id="history_start_date" name="history_start_date" value="{{ history_start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="field">
+                        <label for="history_end_date">End Date</label>
+                        <input type="date" id="history_end_date" name="history_end_date" value="{{ history_end_date|date:'Y-m-d' }}">
                     </div>
                 </div>
                 <button type="submit" class="button">Load Records</button>
@@ -62,7 +66,7 @@
                 <div class="stat">{% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:"h:i:s A" }}{% else %}-{% endif %}</div>
                 <p>
                     <a
-                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_IN&requested_timestamp={% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time In"
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_IN&requested_timestamp={% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time In"
                         class="button ghost"
                     >
                         Correct Time In
@@ -74,7 +78,7 @@
                 <div class="stat">{% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:"h:i:s A" }}{% else %}-{% endif %}</div>
                 <p>
                     <a
-                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_OUT&requested_timestamp={% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time Out"
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_OUT&requested_timestamp={% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time Out"
                         class="button ghost"
                     >
                         Correct Time Out
@@ -85,21 +89,22 @@
                 <h3>Shift Change / Remove</h3>
                 <p>If this date needs a shift-change or removal request, use the correction flow below.</p>
                 <div class="actions">
-                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=SHIFT_CHANGE&reason=Requesting shift change for selected date" class="button ghost">Shift Change</a>
-                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=REMOVE&reason=Requesting removal of incorrect time log" class="button ghost">Remove Log</a>
+                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=SHIFT_CHANGE&reason=Requesting shift change for selected date" class="button ghost">Shift Change</a>
+                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=REMOVE&reason=Requesting removal of incorrect time log" class="button ghost">Remove Log</a>
                 </div>
             </div>
         </div>
 
         <div class="card" style="margin-top: 18px;">
             <div class="section-head">
-                <h3>Tag History for {{ history_date|date:"F j, Y" }}</h3>
+                <h3>Tag History from {{ history_start_date|date:"F j, Y" }} to {{ history_end_date|date:"F j, Y" }}</h3>
                 <span class="muted">{{ history_logs|length }} record{{ history_logs|length|pluralize }}</span>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
+                            <th>Date</th>
                             <th>Tag</th>
                             <th>Time</th>
                             <th>Work Mode</th>
@@ -110,6 +115,7 @@
                     <tbody>
                         {% for log in history_logs %}
                         <tr>
+                            <td>{{ log.work_date|date:"Y-m-d" }}</td>
                             <td>{{ log.tag_type.name }}</td>
                             <td>{{ log.timestamp|date:"h:i:s A" }}</td>
                             <td>{{ log.work_mode|default:"-" }}</td>
@@ -170,6 +176,9 @@
                     </button>
                 </form>
             </div>
+            {% if cooldown_active %}
+            <p class="muted" style="text-align:center;">Time In is locked after Time Out. Remaining cooldown: <span class="countdown" data-remaining-seconds="{{ cooldown_remaining_seconds }}">00:00:00 left</span></p>
+            {% endif %}
             {% endif %}
 
             {% if time_out_button.visible %}

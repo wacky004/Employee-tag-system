@@ -5,6 +5,7 @@ class SystemSetting(models.Model):
     company_name = models.CharField(max_length=150, default="Attendance System")
     default_timezone = models.CharField(max_length=64, default="Asia/Manila")
     required_work_minutes = models.PositiveIntegerField(default=480)
+    time_in_cooldown_hours = models.PositiveIntegerField(default=6)
     lunch_minutes_allowed = models.PositiveIntegerField(default=60)
     break_minutes_allowed = models.PositiveIntegerField(default=15)
     bio_minutes_allowed = models.PositiveIntegerField(default=10)

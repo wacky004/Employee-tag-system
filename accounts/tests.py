@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -130,10 +130,43 @@ class EmployeeDashboardTaggingTests(TestCase):
     def test_employee_history_tab_loads_by_date(self):
         self.client.login(username="employee-dashboard", password="password123")
 
-        response = self.client.get("/dashboard/employee/?tab=history&history_date=2026-04-12")
+        response = self.client.get("/dashboard/employee/?tab=history&history_start_date=2026-04-12&history_end_date=2026-04-14")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(str(response.context["history_date"]), "2026-04-12")
+        self.assertEqual(str(response.context["history_start_date"]), "2026-04-12")
+        self.assertEqual(str(response.context["history_end_date"]), "2026-04-14")
+
+    def test_employee_dashboard_blocks_time_in_during_cooldown_after_time_out(self):
+        self.client.login(username="employee-dashboard", password="password123")
+        now = timezone.now()
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="TIME_IN"),
+            work_date=timezone.localdate(),
+            timestamp=now - timezone.timedelta(hours=1),
+            work_mode="WFH",
+            source="WEB",
+        )
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="TIME_OUT"),
+            work_date=timezone.localdate(),
+            timestamp=now - timezone.timedelta(minutes=30),
+            work_mode="WFH",
+            source="WEB",
+        )
+        AttendanceSession.objects.create(
+            employee=self.employee,
+            work_date=timezone.localdate(),
+            first_time_in=now - timezone.timedelta(hours=1),
+            last_time_out=now - timezone.timedelta(minutes=30),
+        )
+
+        response = self.client.get("/dashboard/employee/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["time_in_button"]["enabled"])
+        self.assertTrue(response.context["cooldown_active"])
 
     def _seed_tag_types(self):
         tag_types = [

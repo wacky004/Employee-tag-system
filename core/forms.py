@@ -19,6 +19,7 @@ class SystemSettingForm(forms.ModelForm):
             "company_name",
             "default_timezone",
             "required_work_minutes",
+            "time_in_cooldown_hours",
             "lunch_minutes_allowed",
             "break_minutes_allowed",
             "bio_minutes_allowed",

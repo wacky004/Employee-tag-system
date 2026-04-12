@@ -249,9 +249,20 @@ def get_employee_tagging_state(employee, work_date):
 
     has_time_in = bool(session and session.first_time_in and not session.last_time_out)
     has_time_out = bool(session and session.last_time_out)
+    cooldown_active = False
+    cooldown_remaining_seconds = 0
+    latest_time_out_log = next((log for log in reversed(logs) if log.tag_type.code == "TIME_OUT"), None)
+    cooldown_hours = settings.time_in_cooldown_hours if settings else SystemSetting._meta.get_field("time_in_cooldown_hours").get_default()
+    if latest_time_out_log and cooldown_hours:
+        cooldown_end = latest_time_out_log.timestamp + timezone.timedelta(hours=cooldown_hours)
+        if timezone.now() < cooldown_end:
+            cooldown_active = True
+            cooldown_remaining_seconds = max(0, int((cooldown_end - timezone.now()).total_seconds()))
 
     valid_codes = []
-    if not logs or has_time_out:
+    if not logs:
+        valid_codes.append("TIME_IN")
+    elif has_time_out and not cooldown_active:
         valid_codes.append("TIME_IN")
     if has_time_in:
         valid_codes.append("TIME_OUT")
@@ -289,6 +300,9 @@ def get_employee_tagging_state(employee, work_date):
         "latest_log": latest_log,
         "has_time_in": has_time_in,
         "has_time_out": has_time_out,
+        "cooldown_active": cooldown_active,
+        "cooldown_remaining_seconds": cooldown_remaining_seconds,
+        "cooldown_hours": cooldown_hours,
     }
 
 

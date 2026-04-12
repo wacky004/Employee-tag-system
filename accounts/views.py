@@ -96,16 +96,23 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
         has_timed_out = tag_state["has_time_out"]
         active_control = next((item for item in tag_state["controls"].values() if item["active"]), None)
         selected_tab = self.request.GET.get("tab", "tagging")
-        history_date = self._get_history_date()
-        history_session = AttendanceSession.objects.filter(
-            employee=self.request.user,
-            work_date=history_date,
-        ).first()
+        history_start_date, history_end_date = self._get_history_range()
+        history_sessions = list(
+            AttendanceSession.objects.filter(
+                employee=self.request.user,
+                work_date__range=(history_start_date, history_end_date),
+            ).order_by("-work_date")
+        )
+        history_session_by_date = {item.work_date: item for item in history_sessions}
         history_logs = list(
             TagLog.objects.select_related("tag_type")
-            .filter(employee=self.request.user, work_date=history_date)
-            .order_by("timestamp", "id")
+            .filter(employee=self.request.user, work_date__range=(history_start_date, history_end_date))
+            .order_by("-work_date", "timestamp", "id")
         )
+        selected_history_session = AttendanceSession.objects.filter(
+            employee=self.request.user,
+            work_date=history_start_date,
+        ).first()
 
         context.update(
             {
@@ -134,21 +141,33 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
                 "active_control": active_control,
                 "scheduled_hours_rows": self._build_scheduled_hours_rows() if not tag_history else [],
                 "selected_tab": selected_tab,
-                "history_date": history_date,
-                "history_session": history_session,
+                "history_start_date": history_start_date,
+                "history_end_date": history_end_date,
+                "history_session": selected_history_session,
+                "history_sessions": history_sessions,
+                "history_session_by_date": history_session_by_date,
                 "history_logs": history_logs,
+                "cooldown_active": tag_state["cooldown_active"],
+                "cooldown_remaining_seconds": tag_state["cooldown_remaining_seconds"],
+                "cooldown_hours": tag_state["cooldown_hours"],
             }
         )
         return context
 
-    def _get_history_date(self):
-        raw_date = self.request.GET.get("history_date", "").strip()
-        if raw_date:
-            try:
-                return date.fromisoformat(raw_date)
-            except ValueError:
-                pass
-        return timezone.localdate()
+    def _get_history_range(self):
+        raw_start = self.request.GET.get("history_start_date", "").strip()
+        raw_end = self.request.GET.get("history_end_date", "").strip()
+        try:
+            start_date = date.fromisoformat(raw_start) if raw_start else timezone.localdate()
+        except ValueError:
+            start_date = timezone.localdate()
+        try:
+            end_date = date.fromisoformat(raw_end) if raw_end else start_date
+        except ValueError:
+            end_date = start_date
+        if end_date < start_date:
+            end_date = start_date
+        return start_date, end_date
 
     def _build_scheduled_hours_rows(self):
         profiles = (
