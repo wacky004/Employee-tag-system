@@ -133,8 +133,25 @@ class CorrectionRequest(models.Model):
         default=Status.PENDING,
     )
     target_work_date = models.DateField()
-    details = models.TextField()
+    requested_tag_type = models.ForeignKey(
+        TagType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="correction_requests",
+    )
+    requested_timestamp = models.DateTimeField(null=True, blank=True)
+    requested_work_mode = models.CharField(max_length=10, blank=True)
+    reason = models.TextField(blank=True, default="")
+    details = models.TextField(blank=True)
     resolution_notes = models.TextField(blank=True)
+    applied_tag_log = models.ForeignKey(
+        "tagging.TagLog",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="correction_requests",
+    )
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

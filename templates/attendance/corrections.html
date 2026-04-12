@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Correction Requests{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Manual Correction Request</h1>
+                <p>Submit a request when you missed a tag or need a log correction.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'accounts:employee-dashboard' %}" class="button secondary">Back to Dashboard</a>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Request Form</h3>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="filters">
+                        {% for field in form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="button">Submit Request</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>My Requests</h3>
+                </div>
+                <div class="list">
+                    {% for item in my_requests %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ item.get_request_type_display }} - {{ item.target_work_date }}</strong>
+                            <p>{{ item.reason }}</p>
+                            {% if item.requested_tag_type %}<p>{{ item.requested_tag_type.name }} at {{ item.requested_timestamp|date:"Y-m-d h:i A" }}</p>{% endif %}
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="badge {% if item.status == 'REJECTED' %}warn{% elif item.status == 'APPROVED' %}good{% endif %}">{{ item.get_status_display }}</div>
+                            {% if item.resolution_notes %}<p>{{ item.resolution_notes }}</p>{% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">No correction requests yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

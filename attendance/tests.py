@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
+from auditlogs.models import AuditLog
 from core.models import SystemSetting
 from tagging.models import TagLog, TagType
 
@@ -96,3 +97,69 @@ class AttendanceSummaryTests(TestCase):
             timestamp=timestamp,
             work_mode="ONSITE",
         )
+
+
+class CorrectionWorkflowTests(TestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user(
+            username="employee2",
+            password="password123",
+            email="employee2@example.com",
+            role=User.Role.EMPLOYEE,
+        )
+        self.admin = User.objects.create_user(
+            username="admin2",
+            password="password123",
+            email="admin2@example.com",
+            role=User.Role.ADMIN,
+        )
+        self.tag_type = TagType.objects.create(
+            code="TIME_IN",
+            name="Time In",
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.IN,
+        )
+
+    def test_employee_can_submit_correction_request(self):
+        self.client.login(username="employee2", password="password123")
+        response = self.client.post(
+            "/corrections/",
+            {
+                "request_type": "MISSING_TAG",
+                "target_work_date": "2026-04-12",
+                "requested_tag_type": self.tag_type.id,
+                "requested_timestamp": "2026-04-12T09:00",
+                "requested_work_mode": "ONSITE",
+                "reason": "Forgot to tag when shift started.",
+                "details": "Internet issue during login.",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AuditLog.objects.filter(action="CORRECTION_REQUEST_SUBMITTED").count(), 1)
+
+    def test_admin_can_approve_correction_and_create_tag_log(self):
+        correction = self.employee.correction_requests.create(
+            request_type="MISSING_TAG",
+            target_work_date=date(2026, 4, 12),
+            requested_tag_type=self.tag_type,
+            requested_timestamp=timezone.make_aware(datetime(2026, 4, 12, 9, 0)),
+            requested_work_mode="ONSITE",
+            reason="Forgot to tag when shift started.",
+        )
+        self.client.login(username="admin2", password="password123")
+        response = self.client.post(
+            "/corrections/review/",
+            {
+                "correction_id": correction.id,
+                "decision": "approve",
+                "resolution_notes": "Approved after verification.",
+            },
+            follow=True,
+        )
+        correction.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(correction.status, correction.Status.APPROVED)
+        self.assertIsNotNone(correction.applied_tag_log)
+        self.assertEqual(TagLog.objects.filter(source=TagLog.Source.CORRECTION).count(), 1)
+        self.assertTrue(AuditLog.objects.filter(action="CORRECTION_REQUEST_APPROVED").exists())

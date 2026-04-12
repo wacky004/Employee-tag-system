@@ -21,6 +21,7 @@ from django.urls import include, path
 urlpatterns = [
     path("", include("accounts.urls")),
     path("", include("core.urls")),
+    path("", include("attendance.urls")),
     path("reports/", include("reports.urls")),
     path("admin/", admin.site.urls),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

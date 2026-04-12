@@ -12,6 +12,7 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'attendance:correction-review' %}" class="button secondary">Corrections</a>
                 <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}

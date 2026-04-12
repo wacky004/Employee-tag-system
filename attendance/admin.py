@@ -36,6 +36,7 @@ class OverbreakRecordAdmin(admin.ModelAdmin):
 
 @admin.register(CorrectionRequest)
 class CorrectionRequestAdmin(admin.ModelAdmin):
-    list_display = ("employee", "request_type", "target_work_date", "status", "created_at")
+    list_display = ("employee", "request_type", "target_work_date", "requested_tag_type", "status", "reviewed_by", "created_at")
     list_filter = ("request_type", "status", "target_work_date")
-    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "details")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "reason", "details")
+    readonly_fields = ("reviewed_at", "applied_tag_log")
