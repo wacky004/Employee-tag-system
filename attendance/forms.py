@@ -11,6 +11,7 @@ class CorrectionRequestForm(forms.ModelForm):
         fields = [
             "request_type",
             "target_work_date",
+            "action_type",
             "requested_tag_type",
             "requested_timestamp",
             "requested_work_mode",
@@ -25,6 +26,7 @@ class CorrectionRequestForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["requested_tag_type"].queryset = TagType.objects.filter(is_active=True).order_by("sort_order", "name")
+        self.fields["details"].required = False
 
 
 class CorrectionReviewForm(forms.Form):

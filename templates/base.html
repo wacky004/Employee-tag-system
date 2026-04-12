@@ -349,6 +349,94 @@
             white-space: nowrap;
         }
 
+        .clock-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(8px);
+            min-width: 250px;
+        }
+
+        .clock-panel .live-time {
+            font-size: clamp(2.2rem, 5vw, 3.6rem);
+            font-weight: 700;
+            letter-spacing: 0.06em;
+        }
+
+        .clock-panel .live-date {
+            margin-top: 8px;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
+        .hero-layout {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+        }
+
+        .tabs {
+            display: inline-flex;
+            gap: 10px;
+            padding: 6px;
+            border-radius: 999px;
+            background: rgba(233, 238, 245, 0.9);
+            margin-bottom: 18px;
+        }
+
+        .tab-link {
+            padding: 10px 16px;
+            border-radius: 999px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .tab-link.active {
+            background: #fff;
+            color: var(--accent-dark);
+            box-shadow: 0 8px 18px rgba(20, 33, 61, 0.08);
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }
+
+        .control-card {
+            padding: 18px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: #f9fbfd;
+        }
+
+        .control-card.active {
+            background: rgba(193, 18, 31, 0.08);
+            border-color: rgba(193, 18, 31, 0.24);
+        }
+
+        .control-card h4 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .remaining {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--accent-dark);
+        }
+
+        .countdown {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #9f1239;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -456,6 +544,11 @@
 
             .hero {
                 padding: 24px;
+            }
+
+            .hero-layout {
+                flex-direction: column;
+                align-items: flex-start;
             }
         }
 

@@ -8,7 +8,7 @@ from accounts.models import Role
 from accounts.views import RoleRequiredMixin
 from employees.models import Department, EmployeeProfile, Team
 
-from .forms import DepartmentForm, EmployeeProfileForm, RoleForm, SystemSettingForm, TeamForm
+from .forms import AttendanceResetForm, DepartmentForm, EmployeeProfileForm, RoleForm, SystemSettingForm, TeamForm
 from .models import SystemSetting
 
 User = get_user_model()
@@ -31,6 +31,7 @@ class SuperAdminSettingsView(RoleRequiredMixin, TemplateView):
                 "role_form": kwargs.get("role_form") or RoleForm(),
                 "employee_profile_form": kwargs.get("employee_profile_form")
                 or EmployeeProfileForm(instance=edit_profile),
+                "attendance_reset_form": kwargs.get("attendance_reset_form") or AttendanceResetForm(),
                 "editing_profile": edit_profile,
                 "departments": Department.objects.order_by("name"),
                 "teams": Team.objects.select_related("department", "lead").order_by("name"),
@@ -54,6 +55,8 @@ class SuperAdminSettingsView(RoleRequiredMixin, TemplateView):
             return self._save_role()
         if action == "employee-profile":
             return self._save_employee_profile()
+        if action == "attendance-reset":
+            return self._reset_attendance()
         messages.error(request, "Unknown settings action.")
         return redirect("core:settings")
 
@@ -98,6 +101,14 @@ class SuperAdminSettingsView(RoleRequiredMixin, TemplateView):
             messages.success(self.request, f"Employee profile for {profile.user} saved.")
             return redirect("core:settings")
         return self.render_to_response(self.get_context_data(employee_profile_form=form, editing_profile=instance))
+
+    def _reset_attendance(self):
+        form = AttendanceResetForm(self.request.POST)
+        if form.is_valid():
+            form.reset_attendance(self.request.user)
+            messages.success(self.request, "Attendance reset completed.")
+            return redirect("core:settings")
+        return self.render_to_response(self.get_context_data(attendance_reset_form=form))
 
     def _get_setting(self):
         return SystemSetting.objects.order_by("id").first() or SystemSetting.objects.create()

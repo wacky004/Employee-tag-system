@@ -44,7 +44,7 @@
                     <div class="list-item">
                         <div>
                             <strong>{{ item.get_request_type_display }} - {{ item.target_work_date }}</strong>
-                            <p>{{ item.reason }}</p>
+                            <p>{{ item.get_action_type_display }} | {{ item.reason }}</p>
                             {% if item.requested_tag_type %}<p>{{ item.requested_tag_type.name }} at {{ item.requested_timestamp|date:"Y-m-d h:i A" }}</p>{% endif %}
                         </div>
                         <div style="text-align:right;">

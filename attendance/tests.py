@@ -66,6 +66,25 @@ class AttendanceSummaryTests(TestCase):
         self.assertEqual(session.missing_tag_pairs_count, 0)
         self.assertEqual(session.overbreak_records.count(), 3)
 
+    def test_refresh_attendance_session_uses_employee_schedule_for_lateness(self):
+        self.user.employee_profile = None
+        from employees.models import EmployeeProfile
+
+        EmployeeProfile.objects.create(
+            user=self.user,
+            employee_code="EMP-LATE",
+            default_work_mode="ONSITE",
+            schedule_start_time=time(8, 30),
+            schedule_end_time=time(17, 30),
+        )
+        work_date = date(2026, 4, 13)
+        self._create_log("TIME_IN", work_date, 1, 0)
+
+        session = refresh_attendance_session(self.user, work_date)
+
+        self.assertEqual(session.total_late_minutes, 30)
+        self.assertTrue(session.is_late)
+
     def test_refresh_attendance_session_flags_missing_pairs(self):
         work_date = date(2026, 4, 12)
         self._create_log("TIME_IN", work_date, 0, 0)
@@ -127,6 +146,7 @@ class CorrectionWorkflowTests(TestCase):
             {
                 "request_type": "MISSING_TAG",
                 "target_work_date": "2026-04-12",
+                "action_type": "CHANGE",
                 "requested_tag_type": self.tag_type.id,
                 "requested_timestamp": "2026-04-12T09:00",
                 "requested_work_mode": "ONSITE",
@@ -142,6 +162,7 @@ class CorrectionWorkflowTests(TestCase):
         correction = self.employee.correction_requests.create(
             request_type="MISSING_TAG",
             target_work_date=date(2026, 4, 12),
+            action_type="CHANGE",
             requested_tag_type=self.tag_type,
             requested_timestamp=timezone.make_aware(datetime(2026, 4, 12, 9, 0)),
             requested_work_mode="ONSITE",

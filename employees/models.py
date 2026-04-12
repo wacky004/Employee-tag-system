@@ -70,6 +70,8 @@ class EmployeeProfile(models.Model):
     employee_code = models.CharField(max_length=30, unique=True)
     job_title = models.CharField(max_length=100, blank=True)
     timezone = models.CharField(max_length=64, default="Asia/Manila")
+    schedule_start_time = models.TimeField(null=True, blank=True)
+    schedule_end_time = models.TimeField(null=True, blank=True)
     default_work_mode = models.CharField(
         max_length=10,
         choices=WorkMode.choices,

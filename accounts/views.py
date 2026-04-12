@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.views.generic import TemplateView, View
 
 from attendance.models import AttendanceSession
-from attendance.services import create_employee_tag, get_current_status_label, get_valid_tag_codes
+from attendance.services import create_employee_tag, get_current_status_label, get_employee_tagging_state
 from employees.models import Department, EmployeeProfile, Team
 from tagging.models import TagLog
 
@@ -80,16 +80,10 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         work_date = timezone.localdate()
-        session = AttendanceSession.objects.filter(
-            employee=self.request.user,
-            work_date=work_date,
-        ).first()
-        valid_codes = set(get_valid_tag_codes(self.request.user, work_date))
-        tag_history = list(
-            TagLog.objects.select_related("tag_type")
-            .filter(employee=self.request.user, work_date=work_date)
-            .order_by("-timestamp", "-id")
-        )
+        tag_state = get_employee_tagging_state(self.request.user, work_date)
+        session = tag_state["session"]
+        valid_codes = set(tag_state["valid_codes"])
+        tag_history = list(reversed(tag_state["logs"]))
         latest_tag = tag_history[0].tag_type.code if tag_history else None
         latest_tag_label = tag_history[0].tag_type.name if tag_history else ""
         default_work_mode = ""
@@ -98,15 +92,20 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
         except ObjectDoesNotExist:
             default_work_mode = ""
 
-        has_timed_in = bool(session and session.first_time_in and not session.last_time_out)
-        has_timed_out = bool(session and session.last_time_out)
-        active_aux_code = latest_tag if latest_tag in {"LUNCH_OUT", "BREAK_OUT", "BIO_OUT"} else ""
-        active_aux_label = {
-            "LUNCH_OUT": "Lunch In Progress",
-            "BREAK_OUT": "Break In Progress",
-            "BIO_OUT": "Bio In Progress",
-        }.get(active_aux_code, "")
-        active_aux_started_at = tag_history[0].timestamp if active_aux_code else None
+        has_timed_in = tag_state["has_time_in"]
+        has_timed_out = tag_state["has_time_out"]
+        active_control = next((item for item in tag_state["controls"].values() if item["active"]), None)
+        selected_tab = self.request.GET.get("tab", "tagging")
+        history_date = self._get_history_date()
+        history_session = AttendanceSession.objects.filter(
+            employee=self.request.user,
+            work_date=history_date,
+        ).first()
+        history_logs = list(
+            TagLog.objects.select_related("tag_type")
+            .filter(employee=self.request.user, work_date=history_date)
+            .order_by("timestamp", "id")
+        )
 
         context.update(
             {
@@ -128,20 +127,48 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
                     "enabled": "TIME_OUT" in valid_codes,
                     "visible": has_timed_in and not has_timed_out,
                 },
-                "tag_buttons": [
-                    {"code": code, "label": label, "enabled": code in valid_codes}
-                    for code, label in self.TAG_BUTTONS
-                    if code not in {"TIME_IN", "TIME_OUT"}
-                ],
+                "tag_controls": list(tag_state["controls"].values()),
                 "tag_history": tag_history,
                 "has_timed_in": has_timed_in,
                 "has_timed_out": has_timed_out,
-                "active_aux_code": active_aux_code,
-                "active_aux_label": active_aux_label,
-                "active_aux_started_at": active_aux_started_at,
+                "active_control": active_control,
+                "scheduled_hours_rows": self._build_scheduled_hours_rows() if not tag_history else [],
+                "selected_tab": selected_tab,
+                "history_date": history_date,
+                "history_session": history_session,
+                "history_logs": history_logs,
             }
         )
         return context
+
+    def _get_history_date(self):
+        raw_date = self.request.GET.get("history_date", "").strip()
+        if raw_date:
+            try:
+                return date.fromisoformat(raw_date)
+            except ValueError:
+                pass
+        return timezone.localdate()
+
+    def _build_scheduled_hours_rows(self):
+        profiles = (
+            EmployeeProfile.objects.select_related("user", "team")
+            .filter(is_active=True, user__is_active=True)
+            .order_by("team__name", "user__first_name", "user__last_name", "employee_code")
+        )
+        rows = []
+        for profile in profiles:
+            rows.append(
+                {
+                    "employee_name": profile.user.get_full_name() or profile.user.username,
+                    "employee_code": profile.employee_code,
+                    "team": profile.team.name if profile.team else "-",
+                    "work_mode": profile.default_work_mode,
+                    "schedule_start": profile.schedule_start_time.strftime("%I:%M %p") if profile.schedule_start_time else "-",
+                    "schedule_end": profile.schedule_end_time.strftime("%I:%M %p") if profile.schedule_end_time else "-",
+                }
+            )
+        return rows
 
 
 class ManagerDashboardView(RoleRequiredMixin, TemplateView):

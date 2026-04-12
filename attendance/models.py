@@ -104,6 +104,11 @@ class OverbreakRecord(models.Model):
 
 
 class CorrectionRequest(models.Model):
+    class ActionType(models.TextChoices):
+        CHANGE = "CHANGE", "Change"
+        REMOVE = "REMOVE", "Remove"
+        SHIFT_CHANGE = "SHIFT_CHANGE", "Shift Change"
+
     class RequestType(models.TextChoices):
         MISSING_TAG = "MISSING_TAG", "Missing Tag"
         EDIT_LOG = "EDIT_LOG", "Edit Log"
@@ -133,6 +138,11 @@ class CorrectionRequest(models.Model):
         default=Status.PENDING,
     )
     target_work_date = models.DateField()
+    action_type = models.CharField(
+        max_length=20,
+        choices=ActionType.choices,
+        default=ActionType.CHANGE,
+    )
     requested_tag_type = models.ForeignKey(
         TagType,
         on_delete=models.SET_NULL,

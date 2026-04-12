@@ -10,18 +10,6 @@ from tagging.models import TagLog, TagType
 
 from .models import AttendanceSession, OverbreakRecord
 
-TAG_SEQUENCE = {
-    None: ("TIME_IN",),
-    "TIME_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
-    "TIME_OUT": ("TIME_IN",),
-    "LUNCH_OUT": ("LUNCH_IN",),
-    "LUNCH_IN": ("TIME_OUT", "BREAK_OUT", "BIO_OUT"),
-    "BREAK_OUT": ("BREAK_IN",),
-    "BREAK_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
-    "BIO_OUT": ("BIO_IN",),
-    "BIO_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
-}
-
 CURRENT_STATUS_LABELS = {
     AttendanceSession.Status.OFF_DUTY: "Timed Out",
     AttendanceSession.Status.WORKING: "Currently Working",
@@ -47,6 +35,12 @@ ALLOWED_MINUTES_FIELDS = {
     TagType.Category.LUNCH: "lunch_minutes_allowed",
     TagType.Category.BREAK: "break_minutes_allowed",
     TagType.Category.BIO: "bio_minutes_allowed",
+}
+
+CATEGORY_CODE_MAP = {
+    "lunch": (TagType.Category.LUNCH, "LUNCH_OUT", "LUNCH_IN"),
+    "break": (TagType.Category.BREAK, "BREAK_OUT", "BREAK_IN"),
+    "bio": (TagType.Category.BIO, "BIO_OUT", "BIO_IN"),
 }
 
 
@@ -163,7 +157,7 @@ def build_daily_summary(employee, work_date):
     elif defaults["first_time_in"] or defaults["last_time_out"]:
         notes.append("Incomplete shift pair. Missing time in or time out.")
 
-    late_minutes = _calculate_late_minutes(defaults["first_time_in"], settings)
+    late_minutes = _calculate_late_minutes(employee, defaults["first_time_in"], settings)
     defaults["total_late_minutes"] = late_minutes
     defaults["is_late"] = late_minutes > 0
     defaults["missing_tag_pairs_count"] = len(notes)
@@ -187,20 +181,15 @@ def refresh_attendance_session(employee, work_date):
 
 
 def get_valid_tag_codes(employee, work_date):
-    latest_log = (
-        TagLog.objects.select_related("tag_type")
-        .filter(employee=employee, work_date=work_date)
-        .order_by("-timestamp", "-id")
-        .first()
-    )
-    latest_code = latest_log.tag_type.code if latest_log else None
-    return TAG_SEQUENCE.get(latest_code, ())
+    state = get_employee_tagging_state(employee, work_date)
+    return tuple(state["valid_codes"])
 
 
 @transaction.atomic
 def create_employee_tag(employee, tag_code, work_date=None):
     work_date = work_date or timezone.localdate()
-    valid_codes = get_valid_tag_codes(employee, work_date)
+    state = get_employee_tagging_state(employee, work_date)
+    valid_codes = state["valid_codes"]
     if tag_code not in valid_codes:
         raise ValueError("This tagging action is not valid right now.")
 
@@ -241,6 +230,68 @@ def get_current_status_label(session):
     return CURRENT_STATUS_LABELS.get(session.current_status, "Unknown")
 
 
+def get_employee_tagging_state(employee, work_date):
+    logs = list(
+        TagLog.objects.select_related("tag_type")
+        .filter(employee=employee, work_date=work_date)
+        .order_by("timestamp", "id")
+    )
+    session = AttendanceSession.objects.filter(employee=employee, work_date=work_date).first()
+    settings = SystemSetting.objects.order_by("-updated_at").first()
+    open_states = {"lunch": None, "break": None, "bio": None}
+
+    for log in logs:
+        for key, (category, start_code, end_code) in CATEGORY_CODE_MAP.items():
+            if log.tag_type.code == start_code:
+                open_states[key] = log
+            elif log.tag_type.code == end_code:
+                open_states[key] = None
+
+    has_time_in = bool(session and session.first_time_in and not session.last_time_out)
+    has_time_out = bool(session and session.last_time_out)
+
+    valid_codes = []
+    if not logs or has_time_out:
+        valid_codes.append("TIME_IN")
+    if has_time_in:
+        valid_codes.append("TIME_OUT")
+        for key, (_, start_code, end_code) in CATEGORY_CODE_MAP.items():
+            valid_codes.append(end_code if open_states[key] else start_code)
+
+    controls = {}
+    now = timezone.now()
+    for key, (category, start_code, end_code) in CATEGORY_CODE_MAP.items():
+        allowed_minutes = _allowed_minutes_for_category(category, settings)
+        consumed_minutes = _get_consumed_minutes(session, category)
+        active_log = open_states[key]
+        active_elapsed = _duration_minutes(active_log.timestamp, now) if active_log else 0
+        remaining_minutes = max(0, allowed_minutes - consumed_minutes - active_elapsed)
+        controls[key] = {
+            "key": key,
+            "label": key.title(),
+            "code": end_code if active_log else start_code,
+            "button_label": f"{key.title()} End" if active_log else f"{key.title()} Start",
+            "active": bool(active_log),
+            "started_at": active_log.timestamp if active_log else None,
+            "allowed_minutes": allowed_minutes,
+            "consumed_minutes": consumed_minutes,
+            "active_elapsed_minutes": active_elapsed,
+            "remaining_minutes": remaining_minutes,
+            "remaining_seconds": max(0, remaining_minutes * 60),
+        }
+
+    latest_log = logs[-1] if logs else None
+    return {
+        "logs": logs,
+        "session": session,
+        "valid_codes": valid_codes,
+        "controls": controls,
+        "latest_log": latest_log,
+        "has_time_in": has_time_in,
+        "has_time_out": has_time_out,
+    }
+
+
 def _sync_overbreak_records(session, overbreaks):
     session.overbreak_records.filter(status=OverbreakRecord.Status.OPEN).delete()
     if not overbreaks:
@@ -278,18 +329,39 @@ def _allowed_minutes_for(category, tag_type, settings):
     return getattr(settings, ALLOWED_MINUTES_FIELDS[category], 0)
 
 
-def _calculate_late_minutes(first_time_in, settings):
-    if not first_time_in or settings is None or settings.late_after_time is None:
+def _allowed_minutes_for_category(category, settings):
+    if settings is None:
+        return 0
+    return getattr(settings, ALLOWED_MINUTES_FIELDS[category], 0)
+
+
+def _calculate_late_minutes(employee, first_time_in, settings):
+    if not first_time_in:
         return 0
 
-    tz_name = settings.default_timezone or timezone.get_current_timezone_name()
+    employee_profile = _get_employee_profile(employee)
+    if employee_profile and employee_profile.schedule_start_time:
+        schedule_time = employee_profile.schedule_start_time
+    elif settings is not None and settings.late_after_time is not None:
+        schedule_time = settings.late_after_time
+    else:
+        return 0
+
+    tz_name = (
+        employee_profile.timezone
+        if employee_profile and employee_profile.timezone
+        else settings.default_timezone if settings else timezone.get_current_timezone_name()
+    )
     try:
         tzinfo = ZoneInfo(tz_name)
     except ZoneInfoNotFoundError:
         tzinfo = timezone.get_current_timezone()
 
     local_first_in = timezone.localtime(first_time_in, tzinfo)
-    late_threshold = datetime.combine(local_first_in.date(), settings.late_after_time, tzinfo=tzinfo)
+    late_threshold = datetime.combine(local_first_in.date(), schedule_time, tzinfo=tzinfo)
+    grace_minutes = settings.late_grace_minutes if settings else 0
+    if grace_minutes:
+        late_threshold = late_threshold + timezone.timedelta(minutes=grace_minutes)
     if local_first_in <= late_threshold:
         return 0
     return int((local_first_in - late_threshold).total_seconds() // 60)
@@ -312,3 +384,14 @@ def _get_employee_profile(employee):
         return employee.employee_profile
     except ObjectDoesNotExist:
         return None
+
+
+def _get_consumed_minutes(session, category):
+    if not session:
+        return 0
+    field_map = {
+        TagType.Category.LUNCH: session.total_lunch_minutes,
+        TagType.Category.BREAK: session.total_break_minutes,
+        TagType.Category.BIO: session.total_bio_minutes,
+    }
+    return field_map.get(category, 0)

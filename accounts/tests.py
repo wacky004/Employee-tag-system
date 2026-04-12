@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -92,6 +92,8 @@ class EmployeeDashboardTaggingTests(TestCase):
         EmployeeProfile.objects.create(
             user=self.employee,
             employee_code="EMP900",
+            schedule_start_time=time(8, 0),
+            schedule_end_time=time(17, 0),
             default_work_mode="WFH",
         )
         self._seed_tag_types()
@@ -102,12 +104,12 @@ class EmployeeDashboardTaggingTests(TestCase):
         response = self.client.get("/dashboard/employee/")
 
         self.assertEqual(response.status_code, 200)
-        buttons = {item["code"]: item["enabled"] for item in response.context["tag_buttons"]}
         self.assertTrue(response.context["time_in_button"]["enabled"])
         self.assertTrue(response.context["time_in_button"]["visible"])
         self.assertFalse(response.context["time_out_button"]["visible"])
-        self.assertFalse(buttons["LUNCH_OUT"])
+        self.assertEqual(len(response.context["tag_controls"]), 3)
         self.assertEqual(response.context["current_status"], "Not Tagged Yet")
+        self.assertGreaterEqual(len(response.context["scheduled_hours_rows"]), 1)
 
     def test_employee_dashboard_post_creates_tag_log_and_updates_session(self):
         self.client.login(username="employee-dashboard", password="password123")
@@ -122,6 +124,16 @@ class EmployeeDashboardTaggingTests(TestCase):
         session = AttendanceSession.objects.get(employee=self.employee, work_date=timezone.localdate())
         self.assertIsNotNone(session.first_time_in)
         self.assertEqual(response.context["current_status"], "Currently Working")
+        self.assertTrue(response.context["time_out_button"]["visible"])
+        self.assertEqual(len(response.context["tag_controls"]), 3)
+
+    def test_employee_history_tab_loads_by_date(self):
+        self.client.login(username="employee-dashboard", password="password123")
+
+        response = self.client.get("/dashboard/employee/?tab=history&history_date=2026-04-12")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(str(response.context["history_date"]), "2026-04-12")
 
     def _seed_tag_types(self):
         tag_types = [

@@ -7,7 +7,7 @@ from django.views.generic import FormView, TemplateView
 
 from accounts.views import RoleRequiredMixin
 from auditlogs.services import create_audit_log
-from tagging.models import TagLog
+from tagging.models import TagLog, TagType
 
 from .forms import CorrectionRequestForm, CorrectionReviewForm
 from .models import AttendanceSession, CorrectionRequest
@@ -38,6 +38,7 @@ class CorrectionRequestCreateView(RoleRequiredMixin, FormView):
             description="Employee submitted a correction request.",
             changes={
                 "request_type": correction.request_type,
+                "action_type": correction.action_type,
                 "requested_tag_type": correction.requested_tag_type.code if correction.requested_tag_type else "",
                 "requested_timestamp": correction.requested_timestamp.isoformat() if correction.requested_timestamp else "",
                 "reason": correction.reason,
@@ -52,6 +53,27 @@ class CorrectionRequestCreateView(RoleRequiredMixin, FormView):
             "requested_tag_type", "reviewed_by"
         )
         return context
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.request.method == "GET":
+            kwargs["initial"] = {
+                "target_work_date": self.request.GET.get("target_work_date", ""),
+                "request_type": self.request.GET.get("request_type", CorrectionRequest.RequestType.EDIT_LOG),
+                "action_type": self.request.GET.get("action_type", CorrectionRequest.ActionType.CHANGE),
+                "requested_work_mode": self.request.GET.get("requested_work_mode", ""),
+                "reason": self.request.GET.get("reason", ""),
+            }
+            tag_code = self.request.GET.get("tag_code", "").strip()
+            if tag_code:
+                try:
+                    kwargs["initial"]["requested_tag_type"] = TagType.objects.get(code=tag_code)
+                except Exception:
+                    pass
+            requested_timestamp = self.request.GET.get("requested_timestamp", "").strip()
+            if requested_timestamp:
+                kwargs["initial"]["requested_timestamp"] = requested_timestamp
+        return kwargs
 
 
 class CorrectionReviewListView(RoleRequiredMixin, TemplateView):

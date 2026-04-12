@@ -1,6 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from attendance.models import AttendanceSession
+from auditlogs.models import AuditLog
+from tagging.models import TagLog, TagType
+
 from .models import SystemSetting
 
 User = get_user_model()
@@ -53,3 +57,42 @@ class SuperAdminSettingsTests(TestCase):
         self.assertEqual(setting.required_work_minutes, 510)
         self.assertEqual(setting.lunch_minutes_allowed, 50)
         self.assertEqual(setting.late_grace_minutes, 5)
+
+    def test_super_admin_can_reset_employee_attendance(self):
+        employee = User.objects.create_user(
+            username="employee-reset",
+            password="password123",
+            email="employee-reset@example.com",
+            role=User.Role.EMPLOYEE,
+        )
+        tag_type = TagType.objects.create(
+            code="TIME_IN",
+            name="Time In",
+            category="SHIFT",
+            direction="IN",
+        )
+        TagLog.objects.create(
+            employee=employee,
+            tag_type=tag_type,
+            work_date="2026-04-12",
+            timestamp="2026-04-12T09:00:00Z",
+            source="WEB",
+        )
+        AttendanceSession.objects.create(employee=employee, work_date="2026-04-12")
+
+        self.client.login(username="superadmin1", password="password123")
+        response = self.client.post(
+            "/settings/",
+            {
+                "action": "attendance-reset",
+                "user": employee.id,
+                "work_date": "2026-04-12",
+                "reason": "Reset for correction.",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TagLog.objects.filter(employee=employee).count(), 0)
+        self.assertEqual(AttendanceSession.objects.filter(employee=employee).count(), 0)
+        self.assertTrue(AuditLog.objects.filter(action="ATTENDANCE_RESET").exists())

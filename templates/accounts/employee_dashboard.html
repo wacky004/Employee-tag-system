@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Employee Dashboard</h1>
-                <p>Your personal tagging page will live here.</p>
+                <p>Real-time tagging, live timers, and personal attendance history.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
@@ -21,10 +21,111 @@
         </div>
 
         <section class="hero">
-            <h2>Personal attendance tagging</h2>
-            <p>Use the buttons below to record your attendance actions for {{ work_date|date:"F j, Y" }}. Before the shift starts, only `Time In` is shown. After time in, the dashboard reveals `Time Out` plus the six start/end controls for lunch, break, and bio.</p>
+            <div class="hero-layout">
+                <div>
+                    <h2>Personal attendance tagging</h2>
+                    <p>Before the shift starts, only `Time In` is shown. After time in, the three live controls for lunch, break, and bio appear with remaining-time indicators, while `Time Out` stays available.</p>
+                </div>
+                <div class="clock-panel">
+                    <div class="live-time" id="live-clock-time">00:00:00</div>
+                    <div class="live-date" id="live-clock-date">{{ work_date|date:"F j, Y" }}</div>
+                </div>
+            </div>
         </section>
 
+        <div class="tabs">
+            <a href="?tab=tagging" class="tab-link {% if selected_tab == 'tagging' %}active{% endif %}">Tagging</a>
+            <a href="?tab=history&history_date={{ history_date|date:'Y-m-d' }}" class="tab-link {% if selected_tab == 'history' %}active{% endif %}">Time Records</a>
+        </div>
+
+        {% if selected_tab == "history" %}
+        <div class="card">
+            <div class="section-head">
+                <h3>Search Time In / Time Out by Date</h3>
+                <span class="muted">Pick a date to view and correct your shift logs.</span>
+            </div>
+            <form method="get">
+                <input type="hidden" name="tab" value="history">
+                <div class="filters">
+                    <div class="field">
+                        <label for="history_date">Date</label>
+                        <input type="date" id="history_date" name="history_date" value="{{ history_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+                <button type="submit" class="button">Load Records</button>
+            </form>
+        </div>
+
+        <div class="grid" style="margin-top: 18px;">
+            <div class="card">
+                <h3>Time In</h3>
+                <div class="stat">{% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:"h:i:s A" }}{% else %}-{% endif %}</div>
+                <p>
+                    <a
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_IN&requested_timestamp={% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time In"
+                        class="button ghost"
+                    >
+                        Correct Time In
+                    </a>
+                </p>
+            </div>
+            <div class="card">
+                <h3>Time Out</h3>
+                <div class="stat">{% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:"h:i:s A" }}{% else %}-{% endif %}</div>
+                <p>
+                    <a
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_OUT&requested_timestamp={% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time Out"
+                        class="button ghost"
+                    >
+                        Correct Time Out
+                    </a>
+                </p>
+            </div>
+            <div class="card">
+                <h3>Shift Change / Remove</h3>
+                <p>If this date needs a shift-change or removal request, use the correction flow below.</p>
+                <div class="actions">
+                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=SHIFT_CHANGE&reason=Requesting shift change for selected date" class="button ghost">Shift Change</a>
+                    <a href="{% url 'attendance:corrections' %}?target_work_date={{ history_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=REMOVE&reason=Requesting removal of incorrect time log" class="button ghost">Remove Log</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+            <div class="section-head">
+                <h3>Tag History for {{ history_date|date:"F j, Y" }}</h3>
+                <span class="muted">{{ history_logs|length }} record{{ history_logs|length|pluralize }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tag</th>
+                            <th>Time</th>
+                            <th>Work Mode</th>
+                            <th>Source</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in history_logs %}
+                        <tr>
+                            <td>{{ log.tag_type.name }}</td>
+                            <td>{{ log.timestamp|date:"h:i:s A" }}</td>
+                            <td>{{ log.work_mode|default:"-" }}</td>
+                            <td>{{ log.get_source_display }}</td>
+                            <td>{{ log.notes|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No tag history found for the selected date.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
         <div class="grid">
             <div class="card">
                 <h3>Current Status</h3>
@@ -34,7 +135,7 @@
             <div class="card">
                 <h3>Work Setup</h3>
                 <div class="stat">{% if session and session.work_mode %}{{ session.work_mode }}{% elif default_work_mode %}{{ default_work_mode }}{% else %}-{% endif %}</div>
-                <p>{% if session and session.first_time_in %}Time In: {{ session.first_time_in|date:"h:i A" }}{% else %}Your work mode will be used on Time In.{% endif %}</p>
+                <p>{% if session and session.first_time_in %}Time In: {{ session.first_time_in|date:"h:i:s A" }}{% else %}Your work mode will be used on Time In.{% endif %}</p>
             </div>
             <div class="card">
                 <h3>Today's Summary</h3>
@@ -44,23 +145,23 @@
             </div>
         </div>
 
-        {% if active_aux_code and active_aux_started_at %}
+        {% if active_control and active_control.started_at %}
         <div class="status-banner" style="margin-top: 18px;">
             <div>
-                <strong>{{ active_aux_label }}</strong>
-                <p class="muted" style="margin: 6px 0 0;">Started at {{ active_aux_started_at|date:"h:i:s A" }}</p>
+                <strong>{{ active_control.label }} in progress</strong>
+                <p class="muted" style="margin: 6px 0 0;">Started at {{ active_control.started_at|date:"h:i:s A" }}</p>
             </div>
-            <div class="timer" data-start-time="{{ active_aux_started_at|date:'c' }}">00:00:00</div>
+            <div class="timer" data-start-time="{{ active_control.started_at|date:'c' }}">00:00:00</div>
         </div>
         {% endif %}
 
         <div class="card" style="margin-top: 18px;">
             <div class="section-head">
-                <h3>Tagging Buttons</h3>
+                <h3>Tagging Panel</h3>
                 <span class="muted">{{ work_date|date:"F j, Y" }}</span>
             </div>
             {% if time_in_button.visible %}
-            <div class="actions" style="margin-top: 0; margin-bottom: 14px;">
+            <div class="actions" style="margin-top: 0; margin-bottom: 14px; justify-content: center;">
                 <form method="post" class="button-form">
                     {% csrf_token %}
                     <input type="hidden" name="tag_action" value="{{ time_in_button.code }}">
@@ -72,11 +173,11 @@
             {% endif %}
 
             {% if time_out_button.visible %}
-            <div class="actions" style="margin-top: 0; margin-bottom: 14px;">
+            <div class="actions" style="margin-top: 0; margin-bottom: 14px; justify-content: center;">
                 <form method="post" class="button-form">
                     {% csrf_token %}
                     <input type="hidden" name="tag_action" value="{{ time_out_button.code }}">
-                    <button type="submit" class="button {% if time_out_button.enabled %}danger{% else %}secondary{% endif %}" {% if not time_out_button.enabled %}disabled{% endif %}>
+                    <button type="submit" class="button danger" {% if not time_out_button.enabled %}disabled{% endif %}>
                         {{ time_out_button.label }}
                     </button>
                 </form>
@@ -84,19 +185,28 @@
             {% endif %}
 
             {% if has_timed_in and not has_timed_out %}
-            <div class="tag-grid">
-                {% for item in tag_buttons %}
-                <form method="post" class="button-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="tag_action" value="{{ item.code }}">
-                    <button
-                        type="submit"
-                        class="button {% if item.code == active_aux_code %}danger{% elif not item.enabled %}secondary{% endif %}"
-                        {% if not item.enabled %}disabled{% endif %}
-                    >
-                        {{ item.label }}
-                    </button>
-                </form>
+            <div class="control-grid">
+                {% for control in tag_controls %}
+                <div class="control-card {% if control.active %}active{% endif %}">
+                    <h4>{{ control.label }}</h4>
+                    <div class="remaining">
+                        {{ control.remaining_minutes }} min left
+                    </div>
+                    <p>Allowed: {{ control.allowed_minutes }} min</p>
+                    <p>Used: {{ control.consumed_minutes }} min</p>
+                    {% if control.active %}
+                    <p class="countdown" data-remaining-seconds="{{ control.remaining_seconds }}">00:00:00 left</p>
+                    {% else %}
+                    <p class="muted">Ready to start.</p>
+                    {% endif %}
+                    <form method="post" class="button-form" style="margin-top: 10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="tag_action" value="{{ control.code }}">
+                        <button type="submit" class="button {% if control.active %}danger{% endif %}">
+                            {{ control.button_label }}
+                        </button>
+                    </form>
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
@@ -136,29 +246,90 @@
                 </table>
             </div>
         </div>
+
+        {% if scheduled_hours_rows %}
+        <div class="card" style="margin-top: 18px;">
+            <div class="section-head">
+                <h3>Working Hours of All Users</h3>
+                <span class="muted">Shown before you start tagging today</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Code</th>
+                            <th>Team</th>
+                            <th>Work Setup</th>
+                            <th>Schedule Start</th>
+                            <th>Schedule End</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in scheduled_hours_rows %}
+                        <tr>
+                            <td>{{ row.employee_name }}</td>
+                            <td>{{ row.employee_code }}</td>
+                            <td>{{ row.team }}</td>
+                            <td>{{ row.work_mode }}</td>
+                            <td>{{ row.schedule_start }}</td>
+                            <td>{{ row.schedule_end }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
     </div>
 </div>
-{% if active_aux_code and active_aux_started_at %}
 <script>
     (function () {
-        const timer = document.querySelector("[data-start-time]");
-        if (!timer) return;
+        const timeNode = document.getElementById("live-clock-time");
+        const dateNode = document.getElementById("live-clock-date");
 
-        const startTime = new Date(timer.getAttribute("data-start-time"));
-        if (Number.isNaN(startTime.getTime())) return;
-
-        function renderTimer() {
-            const elapsedMs = Date.now() - startTime.getTime();
-            const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
-            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
-            const seconds = String(totalSeconds % 60).padStart(2, "0");
-            timer.textContent = `${hours}:${minutes}:${seconds}`;
+        function renderClock() {
+            const now = new Date();
+            timeNode.textContent = now.toLocaleTimeString([], { hour12: true });
+            dateNode.textContent = now.toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" });
         }
 
-        renderTimer();
-        window.setInterval(renderTimer, 1000);
+        renderClock();
+        window.setInterval(renderClock, 1000);
+
+        const activeTimer = document.querySelector("[data-start-time]");
+        if (activeTimer) {
+            const startTime = new Date(activeTimer.getAttribute("data-start-time"));
+            function renderActiveTimer() {
+                const elapsedMs = Date.now() - startTime.getTime();
+                const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+                const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+                const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+                const seconds = String(totalSeconds % 60).padStart(2, "0");
+                activeTimer.textContent = `${hours}:${minutes}:${seconds}`;
+            }
+            renderActiveTimer();
+            window.setInterval(renderActiveTimer, 1000);
+        }
+
+        document.querySelectorAll("[data-remaining-seconds]").forEach(function (node) {
+            const initial = parseInt(node.getAttribute("data-remaining-seconds"), 10);
+            if (Number.isNaN(initial)) return;
+
+            function renderCountdown() {
+                const value = Math.max(0, parseInt(node.getAttribute("data-remaining-seconds"), 10));
+                const hours = String(Math.floor(value / 3600)).padStart(2, "0");
+                const minutes = String(Math.floor((value % 3600) / 60)).padStart(2, "0");
+                const seconds = String(value % 60).padStart(2, "0");
+                node.textContent = `${hours}:${minutes}:${seconds} left`;
+                node.setAttribute("data-remaining-seconds", String(Math.max(0, value - 1)));
+            }
+
+            node.setAttribute("data-remaining-seconds", String(initial));
+            renderCountdown();
+            window.setInterval(renderCountdown, 1000);
+        });
     }());
 </script>
-{% endif %}
 {% endblock %}

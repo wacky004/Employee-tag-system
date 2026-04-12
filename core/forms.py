@@ -2,6 +2,9 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from accounts.models import Role
+from auditlogs.services import create_audit_log
+from attendance.models import AttendanceSession, CorrectionRequest, OverbreakRecord
+from tagging.models import TagLog
 from employees.models import Department, EmployeeProfile, Team
 
 from .models import SystemSetting
@@ -65,12 +68,16 @@ class EmployeeProfileForm(forms.ModelForm):
             "team",
             "job_title",
             "timezone",
+            "schedule_start_time",
+            "schedule_end_time",
             "default_work_mode",
             "hire_date",
             "is_active",
         ]
         widgets = {
             "hire_date": forms.DateInput(attrs={"type": "date"}),
+            "schedule_start_time": forms.TimeInput(attrs={"type": "time"}),
+            "schedule_end_time": forms.TimeInput(attrs={"type": "time"}),
         }
 
     def clean_user(self):
@@ -81,3 +88,49 @@ class EmployeeProfileForm(forms.ModelForm):
         if qs.exists():
             raise forms.ValidationError("This user already has an employee profile.")
         return user
+
+
+class AttendanceResetForm(forms.Form):
+    user = forms.ModelChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"),
+        label="Employee",
+    )
+    work_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    reason = forms.CharField(widget=forms.Textarea)
+
+    def reset_attendance(self, actor):
+        user = self.cleaned_data["user"]
+        work_date = self.cleaned_data["work_date"]
+        reason = self.cleaned_data["reason"]
+
+        tag_logs = TagLog.objects.filter(employee=user, work_date=work_date)
+        tag_log_ids = list(tag_logs.values_list("id", flat=True))
+        sessions = AttendanceSession.objects.filter(employee=user, work_date=work_date)
+        session_ids = list(sessions.values_list("id", flat=True))
+        overbreak_ids = list(
+            OverbreakRecord.objects.filter(attendance_session__in=sessions).values_list("id", flat=True)
+        )
+        correction_ids = list(
+            CorrectionRequest.objects.filter(employee=user, target_work_date=work_date).values_list("id", flat=True)
+        )
+
+        OverbreakRecord.objects.filter(attendance_session__in=sessions).delete()
+        CorrectionRequest.objects.filter(employee=user, target_work_date=work_date).delete()
+        tag_logs.delete()
+        sessions.delete()
+
+        create_audit_log(
+            actor=actor,
+            employee=user,
+            action="ATTENDANCE_RESET",
+            target_model="AttendanceSession",
+            target_id=f"{user.id}:{work_date.isoformat()}",
+            description="Super Admin reset attendance records for a work date.",
+            changes={
+                "deleted_tag_logs": tag_log_ids,
+                "deleted_sessions": session_ids,
+                "deleted_overbreaks": overbreak_ids,
+                "deleted_corrections": correction_ids,
+            },
+            metadata={"reason": reason, "work_date": work_date.isoformat()},
+        )

@@ -23,7 +23,7 @@
                     <div class="list-item">
                         <div>
                             <strong>{{ item.employee }} - {{ item.target_work_date }}</strong>
-                            <p>{{ item.get_request_type_display }} | {{ item.reason }}</p>
+                            <p>{{ item.get_request_type_display }} | {{ item.get_action_type_display }} | {{ item.reason }}</p>
                             {% if item.requested_tag_type %}<p>{{ item.requested_tag_type.name }} at {{ item.requested_timestamp|date:"Y-m-d h:i A" }}</p>{% endif %}
                             {% if item.details %}<p>{{ item.details }}</p>{% endif %}
                         </div>
@@ -60,6 +60,7 @@
                         <div>
                             <strong>{{ item.employee }} - {{ item.target_work_date }}</strong>
                             <p>{{ item.get_status_display }} by {{ item.reviewed_by|default:"-" }}</p>
+                            <p>{{ item.get_action_type_display }}</p>
                             <p>Reason: {{ item.reason }}</p>
                             {% if item.resolution_notes %}<p>{{ item.resolution_notes }}</p>{% endif %}
                         </div>
