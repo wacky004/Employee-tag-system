@@ -1,8 +1,10 @@
 from datetime import date
 
+from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -10,7 +12,9 @@ from django.utils import timezone
 from django.views.generic import TemplateView, View
 
 from attendance.models import AttendanceSession
+from attendance.services import create_employee_tag, get_current_status_label, get_valid_tag_codes
 from employees.models import Department, EmployeeProfile, Team
+from tagging.models import TagLog
 
 User = get_user_model()
 
@@ -51,6 +55,65 @@ class RoleRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
 class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/employee_dashboard.html"
     allowed_roles = (User.Role.EMPLOYEE,)
+
+    TAG_BUTTONS = (
+        ("TIME_IN", "Time In"),
+        ("TIME_OUT", "Time Out"),
+        ("LUNCH_OUT", "Lunch Out"),
+        ("LUNCH_IN", "Lunch In"),
+        ("BREAK_OUT", "Break Out"),
+        ("BREAK_IN", "Break In"),
+        ("BIO_OUT", "Bio Out"),
+        ("BIO_IN", "Bio In"),
+    )
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("tag_action", "").strip()
+        work_date = timezone.localdate()
+        try:
+            create_employee_tag(request.user, action, work_date=work_date)
+            messages.success(request, f"{action.replace('_', ' ').title()} recorded.")
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        return redirect("accounts:employee-dashboard")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        work_date = timezone.localdate()
+        session = AttendanceSession.objects.filter(
+            employee=self.request.user,
+            work_date=work_date,
+        ).first()
+        valid_codes = set(get_valid_tag_codes(self.request.user, work_date))
+        tag_history = list(
+            TagLog.objects.select_related("tag_type")
+            .filter(employee=self.request.user, work_date=work_date)
+            .order_by("-timestamp", "-id")
+        )
+        latest_tag = tag_history[0].tag_type.code if tag_history else None
+        latest_tag_label = tag_history[0].tag_type.name if tag_history else ""
+        default_work_mode = ""
+        try:
+            default_work_mode = self.request.user.employee_profile.default_work_mode
+        except ObjectDoesNotExist:
+            default_work_mode = ""
+
+        context.update(
+            {
+                "work_date": work_date,
+                "session": session,
+                "current_status": get_current_status_label(session),
+                "latest_tag_code": latest_tag,
+                "latest_tag_label": latest_tag_label,
+                "default_work_mode": default_work_mode,
+                "tag_buttons": [
+                    {"code": code, "label": label, "enabled": code in valid_codes}
+                    for code, label in self.TAG_BUTTONS
+                ],
+                "tag_history": tag_history,
+            }
+        )
+        return context
 
 
 class ManagerDashboardView(RoleRequiredMixin, TemplateView):

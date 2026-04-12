@@ -21,24 +21,79 @@
         </div>
 
         <section class="hero">
-            <h2>Ready for personal attendance tagging</h2>
-            <p>This is the landing page for employees after login. The next build step can place the Time In, Lunch, Break, Bio, and Time Out buttons directly on this page.</p>
+            <h2>Personal attendance tagging</h2>
+            <p>Use the available buttons below to record your attendance actions for {{ work_date|date:"F j, Y" }}. Buttons are enabled based on your latest valid tag for today.</p>
         </section>
 
         <div class="grid">
             <div class="card">
-                <h3>Current Destination</h3>
-                <div class="stat">Tagging</div>
-                <p>Employees are redirected here automatically after signing in.</p>
+                <h3>Current Status</h3>
+                <div class="stat">{{ current_status }}</div>
+                <p>{% if latest_tag_label %}Latest tag: {{ latest_tag_label }}{% else %}No tags recorded yet for today.{% endif %}</p>
             </div>
             <div class="card">
-                <h3>Today's Status</h3>
-                <div class="stat">Not tagged yet</div>
-                <p>We can connect this card to the latest AttendanceSession once the tagging flow is built.</p>
+                <h3>Work Setup</h3>
+                <div class="stat">{% if session and session.work_mode %}{{ session.work_mode }}{% elif default_work_mode %}{{ default_work_mode }}{% else %}-{% endif %}</div>
+                <p>{% if session and session.first_time_in %}Time In: {{ session.first_time_in|date:"h:i A" }}{% else %}Your work mode will be used on Time In.{% endif %}</p>
             </div>
             <div class="card">
-                <h3>Quick Actions</h3>
-                <p>Next we can place Time In, Lunch Out, Break Out, Bio Out, and related return actions here.</p>
+                <h3>Today's Summary</h3>
+                <p>Lunch: {% if session %}{{ session.total_lunch_minutes }}{% else %}0{% endif %} min</p>
+                <p>Break: {% if session %}{{ session.total_break_minutes }}{% else %}0{% endif %} min</p>
+                <p>Bio: {% if session %}{{ session.total_bio_minutes }}{% else %}0{% endif %} min</p>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+            <div class="section-head">
+                <h3>Tagging Buttons</h3>
+                <span class="muted">{{ work_date|date:"F j, Y" }}</span>
+            </div>
+            <div class="tag-grid">
+                {% for item in tag_buttons %}
+                <form method="post" class="button-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="tag_action" value="{{ item.code }}">
+                    <button type="submit" class="button {% if not item.enabled %}secondary{% endif %}" {% if not item.enabled %}disabled{% endif %}>
+                        {{ item.label }}
+                    </button>
+                </form>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;">
+            <div class="section-head">
+                <h3>Today's Tag History</h3>
+                <span class="muted">{{ tag_history|length }} record{{ tag_history|length|pluralize }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tag</th>
+                            <th>Time</th>
+                            <th>Work Mode</th>
+                            <th>Source</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in tag_history %}
+                        <tr>
+                            <td>{{ log.tag_type.name }}</td>
+                            <td>{{ log.timestamp|date:"h:i:s A" }}</td>
+                            <td>{{ log.work_mode|default:"-" }}</td>
+                            <td>{{ log.get_source_display }}</td>
+                            <td>{{ log.notes|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No tag history yet for today.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

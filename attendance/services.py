@@ -1,6 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 
@@ -8,6 +9,26 @@ from core.models import SystemSetting
 from tagging.models import TagLog, TagType
 
 from .models import AttendanceSession, OverbreakRecord
+
+TAG_SEQUENCE = {
+    None: ("TIME_IN",),
+    "TIME_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
+    "TIME_OUT": ("TIME_IN",),
+    "LUNCH_OUT": ("LUNCH_IN",),
+    "LUNCH_IN": ("TIME_OUT", "BREAK_OUT", "BIO_OUT"),
+    "BREAK_OUT": ("BREAK_IN",),
+    "BREAK_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
+    "BIO_OUT": ("BIO_IN",),
+    "BIO_IN": ("TIME_OUT", "LUNCH_OUT", "BREAK_OUT", "BIO_OUT"),
+}
+
+CURRENT_STATUS_LABELS = {
+    AttendanceSession.Status.OFF_DUTY: "Timed Out",
+    AttendanceSession.Status.WORKING: "Currently Working",
+    AttendanceSession.Status.LUNCH: "On Lunch",
+    AttendanceSession.Status.BREAK: "On Break",
+    AttendanceSession.Status.BIO: "On Bio",
+}
 
 
 CATEGORY_DURATION_FIELDS = {
@@ -165,6 +186,61 @@ def refresh_attendance_session(employee, work_date):
     return session
 
 
+def get_valid_tag_codes(employee, work_date):
+    latest_log = (
+        TagLog.objects.select_related("tag_type")
+        .filter(employee=employee, work_date=work_date)
+        .order_by("-timestamp", "-id")
+        .first()
+    )
+    latest_code = latest_log.tag_type.code if latest_log else None
+    return TAG_SEQUENCE.get(latest_code, ())
+
+
+@transaction.atomic
+def create_employee_tag(employee, tag_code, work_date=None):
+    work_date = work_date or timezone.localdate()
+    valid_codes = get_valid_tag_codes(employee, work_date)
+    if tag_code not in valid_codes:
+        raise ValueError("This tagging action is not valid right now.")
+
+    tag_type = TagType.objects.filter(code=tag_code, is_active=True).first()
+    if tag_type is None:
+        raise ValueError("The requested tag type is not configured.")
+
+    latest_session = AttendanceSession.objects.filter(
+        employee=employee,
+        work_date=work_date,
+    ).first()
+    employee_profile = _get_employee_profile(employee)
+
+    work_mode = ""
+    if tag_code == "TIME_IN":
+        work_mode = employee_profile.default_work_mode if employee_profile else ""
+    elif latest_session and latest_session.work_mode:
+        work_mode = latest_session.work_mode
+    elif employee_profile:
+        work_mode = employee_profile.default_work_mode
+
+    tag_log = TagLog.objects.create(
+        employee=employee,
+        tag_type=tag_type,
+        work_date=work_date,
+        timestamp=timezone.now(),
+        work_mode=work_mode,
+        source=TagLog.Source.WEB,
+        created_by=employee,
+    )
+    session = refresh_attendance_session(employee, work_date)
+    return tag_log, session
+
+
+def get_current_status_label(session):
+    if session is None or not session.first_time_in:
+        return "Not Tagged Yet"
+    return CURRENT_STATUS_LABELS.get(session.current_status, "Unknown")
+
+
 def _sync_overbreak_records(session, overbreaks):
     session.overbreak_records.filter(status=OverbreakRecord.Status.OPEN).delete()
     if not overbreaks:
@@ -229,3 +305,10 @@ def _detect_timezone_name(log, settings):
 
 def _get_default_timezone_name():
     return timezone.get_current_timezone_name()
+
+
+def _get_employee_profile(employee):
+    try:
+        return employee.employee_profile
+    except ObjectDoesNotExist:
+        return None

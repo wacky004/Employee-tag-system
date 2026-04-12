@@ -2,9 +2,11 @@ from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 
 from attendance.models import AttendanceSession
 from employees.models import Department, EmployeeProfile, Team
+from tagging.models import TagLog, TagType
 
 User = get_user_model()
 
@@ -76,3 +78,65 @@ class ManagerDashboardTests(TestCase):
             default_work_mode=work_mode,
         )
         return user
+
+
+class EmployeeDashboardTaggingTests(TestCase):
+    def setUp(self):
+        self.employee = User.objects.create_user(
+            username="employee-dashboard",
+            password="password123",
+            email="employee-dashboard@example.com",
+            role=User.Role.EMPLOYEE,
+            first_name="Taylor",
+        )
+        EmployeeProfile.objects.create(
+            user=self.employee,
+            employee_code="EMP900",
+            default_work_mode="WFH",
+        )
+        self._seed_tag_types()
+
+    def test_employee_dashboard_shows_valid_initial_buttons(self):
+        self.client.login(username="employee-dashboard", password="password123")
+
+        response = self.client.get("/dashboard/employee/")
+
+        self.assertEqual(response.status_code, 200)
+        buttons = {item["code"]: item["enabled"] for item in response.context["tag_buttons"]}
+        self.assertTrue(buttons["TIME_IN"])
+        self.assertFalse(buttons["TIME_OUT"])
+        self.assertEqual(response.context["current_status"], "Not Tagged Yet")
+
+    def test_employee_dashboard_post_creates_tag_log_and_updates_session(self):
+        self.client.login(username="employee-dashboard", password="password123")
+
+        response = self.client.post("/dashboard/employee/", {"tag_action": "TIME_IN"}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TagLog.objects.count(), 1)
+        tag_log = TagLog.objects.get()
+        self.assertEqual(tag_log.tag_type.code, "TIME_IN")
+        self.assertEqual(tag_log.work_mode, "WFH")
+        session = AttendanceSession.objects.get(employee=self.employee, work_date=timezone.localdate())
+        self.assertIsNotNone(session.first_time_in)
+        self.assertEqual(response.context["current_status"], "Currently Working")
+
+    def _seed_tag_types(self):
+        tag_types = [
+            ("TIME_IN", "Time In", TagType.Category.SHIFT, TagType.Direction.IN),
+            ("TIME_OUT", "Time Out", TagType.Category.SHIFT, TagType.Direction.OUT),
+            ("LUNCH_OUT", "Lunch Out", TagType.Category.LUNCH, TagType.Direction.OUT),
+            ("LUNCH_IN", "Lunch In", TagType.Category.LUNCH, TagType.Direction.IN),
+            ("BREAK_OUT", "Break Out", TagType.Category.BREAK, TagType.Direction.OUT),
+            ("BREAK_IN", "Break In", TagType.Category.BREAK, TagType.Direction.IN),
+            ("BIO_OUT", "Bio Out", TagType.Category.BIO, TagType.Direction.OUT),
+            ("BIO_IN", "Bio In", TagType.Category.BIO, TagType.Direction.IN),
+        ]
+        for index, (code, name, category, direction) in enumerate(tag_types, start=1):
+            TagType.objects.create(
+                code=code,
+                name=name,
+                category=category,
+                direction=direction,
+                sort_order=index,
+            )
