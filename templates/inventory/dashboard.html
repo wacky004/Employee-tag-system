@@ -12,6 +12,11 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'inventory:summary' %}" class="button secondary">Summary</a>
+                <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">Equipment Reports</a>
+                {% if can_manage_inventory %}
+                <a href="{% url 'inventory:audit-log-list' %}" class="button secondary">Audit Log</a>
+                {% endif %}
                 <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
@@ -28,6 +33,11 @@
         <section class="hero">
             <h2>Equipment ownership and assignment history</h2>
             <p>Super admins can add supervisors, employees without system login accounts, equipment categories, equipment items, and assignments while keeping a full audit-friendly history per asset.</p>
+            <div class="actions" style="margin-top: 16px;">
+                <a href="{% url 'inventory:equipment-report-list' %}" class="button">Open Equipment Reports</a>
+                <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective</a>
+                <a href="{% url 'inventory:assigned-equipment-report' %}" class="button secondary">Assigned</a>
+            </div>
         </section>
 
         <div class="mini-grid">

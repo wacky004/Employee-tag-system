@@ -12,6 +12,8 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">Equipment Reports</a>
+                <a href="{% url 'inventory:audit-log-list' %}" class="button secondary">Audit Log</a>
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}
@@ -23,6 +25,10 @@
         <section class="hero">
             <h2>Inventory totals at a glance</h2>
             <p>Use this summary page to see the overall equipment count, assignment coverage, and people totals without opening the full management screens.</p>
+            <div class="actions" style="margin-top: 16px;">
+                <a href="{% url 'inventory:equipment-report-list' %}" class="button">Open Equipment Reports</a>
+                <a href="{% url 'inventory:unassigned-equipment-report' %}" class="button secondary">Unassigned</a>
+            </div>
         </section>
 
         <div class="mini-grid">
