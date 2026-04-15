@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Summary Dashboard{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Inventory Summary Dashboard</h1>
+                <p>Quick totals for equipment, assignments, supervisors, and employees.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Inventory totals at a glance</h2>
+            <p>Use this summary page to see the overall equipment count, assignment coverage, and people totals without opening the full management screens.</p>
+        </section>
+
+        <div class="mini-grid">
+            <div class="mini-card">
+                <h4>Total Equipment</h4>
+                <div class="value">{{ total_equipment }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Total Assigned</h4>
+                <div class="value">{{ assigned_equipment }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Total Unassigned</h4>
+                <div class="value">{{ unassigned_equipment }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Total Supervisors</h4>
+                <div class="value">{{ total_supervisors }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Total Employees</h4>
+                <div class="value">{{ total_employees }}</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Equipment by Status</h3>
+                <span class="badge">{{ total_equipment }}</span>
+            </div>
+            <div class="mini-grid">
+                {% for card in status_cards %}
+                <div class="mini-card">
+                    <h4>{{ card.label }}</h4>
+                    <div class="value">{{ card.total }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

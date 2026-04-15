@@ -234,6 +234,33 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             )
 
 
+class InventorySummaryView(InventoryAccessMixin, TemplateView):
+    template_name = "inventory/summary_dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        total_equipment = Equipment.objects.count()
+        assigned_equipment = Equipment.objects.filter(current_employee__isnull=False).count()
+        status_totals = {code: 0 for code, _label in Equipment.Status.choices}
+        for row in Equipment.objects.values("status").annotate(total=Count("id")):
+            status_totals[row["status"]] = row["total"]
+
+        context.update(
+            {
+                "total_equipment": total_equipment,
+                "assigned_equipment": assigned_equipment,
+                "unassigned_equipment": total_equipment - assigned_equipment,
+                "total_supervisors": Supervisor.objects.count(),
+                "total_employees": Employee.objects.count(),
+                "status_cards": [
+                    {"code": code, "label": label, "total": status_totals.get(code, 0)}
+                    for code, label in Equipment.Status.choices
+                ],
+            }
+        )
+        return context
+
+
 class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
     model = Equipment
     form_class = EquipmentForm

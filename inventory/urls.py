@@ -9,6 +9,7 @@ from .views import (
     EquipmentDetailView,
     EquipmentHistoryView,
     InventoryDashboardView,
+    InventorySummaryView,
     SupervisorCreateView,
     SupervisorListView,
 )
@@ -17,6 +18,7 @@ app_name = "inventory"
 
 urlpatterns = [
     path("", InventoryDashboardView.as_view(), name="dashboard"),
+    path("summary/", InventorySummaryView.as_view(), name="summary"),
     path("supervisors/", SupervisorListView.as_view(), name="supervisor-list"),
     path("supervisors/create/", SupervisorCreateView.as_view(), name="supervisor-create"),
     path("employees/", EmployeeListView.as_view(), name="employee-list"),

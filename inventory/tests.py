@@ -135,6 +135,37 @@ class InventoryDashboardTests(TestCase):
         self.assertIsNotNone(assignments[1].returned_at)
         self.assertGreaterEqual(len(history_logs), 3)
 
+    def test_inventory_summary_dashboard_shows_totals(self):
+        user = User.objects.create_user(
+            username="summarysuper",
+            email="summarysuper@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        supervisor = Supervisor.objects.create(full_name="Summary Supervisor", employee_code="SUP-500")
+        employee = Employee.objects.create(full_name="Summary Employee", employee_code="EMP-500", supervisor=supervisor)
+        assigned_equipment = Equipment.objects.create(
+            asset_code="EQ-500",
+            name="Laptop Summary",
+            status=Equipment.Status.BRANDNEW,
+            current_employee=employee,
+        )
+        Equipment.objects.create(
+            asset_code="EQ-501",
+            name="Headset Summary",
+            status=Equipment.Status.DEFECTIVE,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("inventory:summary"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Inventory Summary Dashboard")
+        self.assertContains(response, "2")
+        self.assertContains(response, "1")
+        self.assertContains(response, "Brand New")
+        self.assertContains(response, "Defective")
+
 
 class EquipmentCreateModuleTests(TestCase):
     def test_super_admin_can_open_equipment_create_page(self):
