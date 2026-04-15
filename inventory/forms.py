@@ -1,3 +1,5 @@
+from typing import cast
+
 from django import forms
 from django.db.models import Q
 from django.utils import timezone
@@ -44,8 +46,10 @@ class EmployeeAssignSupervisorForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["employee"].queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
-        self.fields["supervisor"].queryset = Supervisor.objects.filter(is_active=True).order_by("full_name", "employee_code")
+        employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
+        supervisor_field = cast(forms.ModelChoiceField, self.fields["supervisor"])
+        employee_field.queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        supervisor_field.queryset = Supervisor.objects.filter(is_active=True).order_by("full_name", "employee_code")
 
 
 class EmployeeSearchForm(forms.Form):
@@ -98,8 +102,10 @@ class EquipmentAssignmentForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["equipment"].queryset = Equipment.objects.order_by("asset_code", "name")
-        self.fields["employee"].queryset = Employee.objects.filter(is_active=True).order_by("full_name")
+        equipment_field = cast(forms.ModelChoiceField, self.fields["equipment"])
+        employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
+        equipment_field.queryset = Equipment.objects.order_by("asset_code", "name")
+        employee_field.queryset = Employee.objects.filter(is_active=True).order_by("full_name")
 
     def clean(self):
         cleaned_data = super().clean()
@@ -122,8 +128,10 @@ class EquipmentAssignmentCreateForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["equipment"].queryset = Equipment.objects.select_related("current_employee").order_by("asset_code", "name")
-        self.fields["employee"].queryset = Employee.objects.filter(is_active=True).order_by("full_name", "employee_code")
+        equipment_field = cast(forms.ModelChoiceField, self.fields["equipment"])
+        employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
+        equipment_field.queryset = Equipment.objects.select_related("current_employee").order_by("asset_code", "name")
+        employee_field.queryset = Employee.objects.filter(is_active=True).order_by("full_name", "employee_code")
 
     def clean(self):
         cleaned_data = super().clean()
