@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Employee List{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Employee List</h1>
+                <p>Manage non-login employees and their supervisor assignments.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:employee-create' %}" class="button">Create Employee</a>
+                <a href="{% url 'inventory:employee-assign-supervisor' %}" class="button secondary">Assign Supervisor</a>
+                <a href="{% url 'inventory:supervisor-list' %}" class="button secondary">Supervisors</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="get">
+                <div class="section-head">
+                    <h3>Search Employees</h3>
+                    <div class="actions">
+                        <a href="{% url 'inventory:employee-list' %}" class="button ghost">Reset</a>
+                        <button type="submit" class="button">Search</button>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="field">
+                        <label for="q">Search</label>
+                        <input type="text" id="q" name="q" value="{{ query }}" placeholder="Employee name, employee ID, or supervisor">
+                    </div>
+                    <div class="field">
+                        <label for="supervisor">Supervisor</label>
+                        <select id="supervisor" name="supervisor">
+                            <option value="">All supervisors</option>
+                            {% for supervisor in supervisors %}
+                            <option value="{{ supervisor.id }}" {% if selected_supervisor == supervisor.id|stringformat:"s" %}selected{% endif %}>{{ supervisor.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Employees</h3>
+                <span class="badge">{{ employees|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Supervisor</th>
+                            <th>Department</th>
+                            <th>Team</th>
+                            <th>Job Title</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in employees %}
+                        <tr>
+                            <td>
+                                <strong>{{ employee.full_name }}</strong>
+                                <div class="muted">{{ employee.employee_code }}</div>
+                            </td>
+                            <td>{% if employee.supervisor %}{{ employee.supervisor.full_name }}{% else %}-{% endif %}</td>
+                            <td>{{ employee.department|default:"-" }}</td>
+                            <td>{{ employee.team_name|default:"-" }}</td>
+                            <td>{{ employee.job_title|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No employees found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Employee to Supervisor{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Assign Employee to Supervisor</h1>
+                <p>Assign one employee to one supervisor.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:employee-list' %}" class="button secondary">Back to Employee List</a>
+                <a href="{% url 'inventory:supervisor-list' %}" class="button secondary">Back to Supervisors</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                {% if form.non_field_errors %}
+                <div class="muted">{{ form.non_field_errors|join:", " }}</div>
+                {% endif %}
+                <div class="actions">
+                    <button type="submit" class="button">Assign Supervisor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

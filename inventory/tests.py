@@ -195,3 +195,97 @@ class EquipmentCreateModuleTests(TestCase):
                 status=Equipment.Status.BRANDNEW,
             ).exists()
         )
+
+
+class SupervisorEmployeeManagementTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="superpeople",
+            email="superpeople@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="adminpeople",
+            email="adminpeople@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+
+    def test_super_admin_can_create_supervisor(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:supervisor-create"),
+            {
+                "full_name": "Supervisor One",
+                "employee_code": "SUP-100",
+                "department": "Operations",
+                "job_title": "Team Supervisor",
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("inventory:supervisor-list"))
+        self.assertTrue(Supervisor.objects.filter(employee_code="SUP-100").exists())
+
+    def test_super_admin_can_create_employee_without_login(self):
+        supervisor = Supervisor.objects.create(full_name="Supervisor One", employee_code="SUP-101")
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:employee-create"),
+            {
+                "full_name": "Employee One",
+                "employee_code": "EMP-200",
+                "department": "Operations",
+                "team_name": "Warehouse",
+                "job_title": "Clerk",
+                "supervisor": supervisor.id,
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("inventory:employee-list"))
+        self.assertTrue(Employee.objects.filter(employee_code="EMP-200", supervisor=supervisor).exists())
+        self.assertFalse(User.objects.filter(username="EMP-200").exists())
+
+    def test_super_admin_can_assign_employee_to_supervisor(self):
+        supervisor = Supervisor.objects.create(full_name="Supervisor Two", employee_code="SUP-102")
+        employee = Employee.objects.create(full_name="Employee Two", employee_code="EMP-201")
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:employee-assign-supervisor"),
+            {
+                "employee": employee.id,
+                "supervisor": supervisor.id,
+            },
+        )
+        employee.refresh_from_db()
+
+        self.assertRedirects(response, reverse("inventory:employee-list"))
+        self.assertEqual(employee.supervisor, supervisor)
+
+    def test_employee_list_search_filters_by_name_id_and_supervisor(self):
+        supervisor = Supervisor.objects.create(full_name="Target Supervisor", employee_code="SUP-103")
+        Employee.objects.create(full_name="Alice Cruz", employee_code="EMP-300", supervisor=supervisor)
+        Employee.objects.create(full_name="Brian Dela", employee_code="EMP-301")
+        self.client.force_login(self.super_admin)
+
+        by_name = self.client.get(reverse("inventory:employee-list"), {"q": "Alice"})
+        by_id = self.client.get(reverse("inventory:employee-list"), {"q": "EMP-301"})
+        by_supervisor = self.client.get(reverse("inventory:employee-list"), {"q": "Target Supervisor"})
+
+        self.assertContains(by_name, "Alice Cruz")
+        self.assertNotContains(by_name, "Brian Dela")
+        self.assertContains(by_id, "Brian Dela")
+        self.assertNotContains(by_id, "Alice Cruz")
+        self.assertContains(by_supervisor, "Alice Cruz")
+        self.assertNotContains(by_supervisor, "Brian Dela")
+
+    def test_admin_cannot_access_supervisor_or_employee_management_pages(self):
+        self.client.force_login(self.admin)
+
+        supervisor_response = self.client.get(reverse("inventory:supervisor-list"))
+        employee_response = self.client.get(reverse("inventory:employee-list"))
+
+        self.assertRedirects(supervisor_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(employee_response, reverse("accounts:manager-dashboard"))

@@ -5,9 +5,16 @@ from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
-from django.views.generic import CreateView, TemplateView
+from django.views.generic import CreateView, FormView, ListView, TemplateView
 
-from .forms import EmployeeForm, EquipmentAssignmentForm, EquipmentCategoryForm, EquipmentForm, SupervisorForm
+from .forms import (
+    EmployeeAssignSupervisorForm,
+    EmployeeForm,
+    EquipmentAssignmentForm,
+    EquipmentCategoryForm,
+    EquipmentForm,
+    SupervisorForm,
+)
 from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
 
 User = get_user_model()
@@ -216,3 +223,79 @@ class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
 
     def get_success_url(self):
         return reverse("inventory:equipment-create")
+
+
+class SupervisorListView(SuperAdminInventoryAccessMixin, ListView):
+    model = Supervisor
+    template_name = "inventory/supervisor_list.html"
+    context_object_name = "supervisors"
+
+    def get_queryset(self):
+        return Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name", "employee_code")
+
+
+class SupervisorCreateView(SuperAdminInventoryAccessMixin, CreateView):
+    model = Supervisor
+    form_class = SupervisorForm
+    template_name = "inventory/supervisor_create.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Supervisor created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:supervisor-list")
+
+
+class EmployeeListView(SuperAdminInventoryAccessMixin, ListView):
+    model = Employee
+    template_name = "inventory/employee_list.html"
+    context_object_name = "employees"
+
+    def get_queryset(self):
+        queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        query = self.request.GET.get("q", "").strip()
+        supervisor_id = self.request.GET.get("supervisor", "").strip()
+
+        if query:
+            queryset = queryset.filter(
+                Q(full_name__icontains=query)
+                | Q(employee_code__icontains=query)
+                | Q(supervisor__full_name__icontains=query)
+            )
+        if supervisor_id:
+            queryset = queryset.filter(supervisor_id=supervisor_id)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["query"] = self.request.GET.get("q", "").strip()
+        context["selected_supervisor"] = self.request.GET.get("supervisor", "").strip()
+        context["supervisors"] = Supervisor.objects.order_by("full_name", "employee_code")
+        return context
+
+
+class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
+    model = Employee
+    form_class = EmployeeForm
+    template_name = "inventory/employee_create.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Employee created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:employee-list")
+
+
+class EmployeeAssignSupervisorView(SuperAdminInventoryAccessMixin, FormView):
+    form_class = EmployeeAssignSupervisorForm
+    template_name = "inventory/employee_assign_supervisor.html"
+
+    def form_valid(self, form):
+        employee = form.cleaned_data["employee"]
+        supervisor = form.cleaned_data["supervisor"]
+        employee.supervisor = supervisor
+        employee.save(update_fields=["supervisor"])
+        messages.success(self.request, "Employee assigned to supervisor successfully.")
+        return redirect("inventory:employee-list")

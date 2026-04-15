@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Supervisor List{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Supervisor List</h1>
+                <p>View all supervisors created for the inventory management module.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'inventory:supervisor-create' %}" class="button">Create Supervisor</a>
+                <a href="{% url 'inventory:employee-list' %}" class="button secondary">Employees</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>All Supervisors</h3>
+                <span class="badge">{{ supervisors|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Supervisor</th>
+                            <th>Department</th>
+                            <th>Job Title</th>
+                            <th>Employees</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for supervisor in supervisors %}
+                        <tr>
+                            <td>
+                                <strong>{{ supervisor.full_name }}</strong>
+                                <div class="muted">{{ supervisor.employee_code }}</div>
+                            </td>
+                            <td>{{ supervisor.department|default:"-" }}</td>
+                            <td>{{ supervisor.job_title|default:"-" }}</td>
+                            <td>{{ supervisor.member_count }}</td>
+                            <td>{% if supervisor.is_active %}Active{% else %}Inactive{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No supervisors created yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

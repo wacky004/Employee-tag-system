@@ -33,6 +33,16 @@ class EmployeeForm(forms.ModelForm):
         self.fields["supervisor"].queryset = Supervisor.objects.filter(is_active=True).order_by("full_name")
 
 
+class EmployeeAssignSupervisorForm(forms.Form):
+    employee = forms.ModelChoiceField(queryset=Employee.objects.none())
+    supervisor = forms.ModelChoiceField(queryset=Supervisor.objects.none())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["employee"].queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        self.fields["supervisor"].queryset = Supervisor.objects.filter(is_active=True).order_by("full_name", "employee_code")
+
+
 class EquipmentCategoryForm(forms.ModelForm):
     class Meta:
         model = EquipmentCategory
