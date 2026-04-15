@@ -12,6 +12,7 @@
             </div>
             <div class="actions">
                 <a href="{% url 'inventory:equipment-assign' %}" class="button">Assign Equipment</a>
+                <a href="{% url 'inventory:equipment-update' equipment.pk %}" class="button secondary">Edit Equipment</a>
                 <a href="{% url 'inventory:equipment-history' equipment.pk %}" class="button secondary">Full History</a>
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
             </div>

@@ -32,6 +32,7 @@
                             <th>Job Title</th>
                             <th>Employees</th>
                             <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -45,10 +46,11 @@
                             <td>{{ supervisor.job_title|default:"-" }}</td>
                             <td>{{ supervisor.member_count }}</td>
                             <td>{% if supervisor.is_active %}Active{% else %}Inactive{% endif %}</td>
+                            <td><a href="{% url 'inventory:supervisor-update' supervisor.pk %}">Edit</a></td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="muted">No supervisors created yet.</td>
+                            <td colspan="6" class="muted">No supervisors created yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

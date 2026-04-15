@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Employee, Equipment, EquipmentCategory, Supervisor
@@ -31,7 +32,10 @@ class EmployeeForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["supervisor"].queryset = Supervisor.objects.filter(is_active=True).order_by("full_name")
+        queryset = Supervisor.objects.filter(is_active=True)
+        if self.instance.pk and self.instance.supervisor_id:
+            queryset = Supervisor.objects.filter(Q(is_active=True) | Q(pk=self.instance.supervisor_id))
+        self.fields["supervisor"].queryset = queryset.order_by("full_name")
 
 
 class EmployeeAssignSupervisorForm(forms.Form):

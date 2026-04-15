@@ -11,6 +11,7 @@
                 <p>Review employee profile information, current equipment, and assignment history.</p>
             </div>
             <div class="actions">
+                <a href="{% url 'inventory:employee-update' employee.pk %}" class="button">Edit Employee</a>
                 <a href="{% url 'inventory:employee-search' %}" class="button secondary">Back to Search</a>
                 <a href="{% url 'inventory:employee-list' %}" class="button secondary">Employee List</a>
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
@@ -35,13 +36,31 @@
                     <h3>Currently Assigned Equipment</h3>
                     <span class="badge">{{ current_equipment|length }}</span>
                 </div>
-                {% if current_equipment %}
+                {% if current_equipment_rows %}
                 <div class="list">
-                    {% for equipment in current_equipment %}
+                    {% for row in current_equipment_rows %}
                     <div class="list-item">
                         <div>
-                            <strong>{{ equipment.asset_code }} • {{ equipment.name }}</strong>
-                            <p>{{ equipment.get_status_display }}{% if equipment.category %} • {{ equipment.category.name }}{% endif %}</p>
+                            <strong>{{ row.equipment.asset_code }} - {{ row.equipment.name }}</strong>
+                            <p>{{ row.equipment.get_status_display }}{% if row.equipment.category %} - {{ row.equipment.category.name }}{% endif %}</p>
+                            <p><a href="{% url 'inventory:equipment-detail' row.equipment.pk %}">Open equipment detail</a></p>
+                            <form method="post" style="margin-top: 12px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="equipment_id" value="{{ row.equipment.id }}">
+                                {% for field in row.return_form %}
+                                <div class="field">
+                                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                                    {{ field }}
+                                    {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                                </div>
+                                {% endfor %}
+                                {% if row.return_form.non_field_errors %}
+                                <div class="muted">{{ row.return_form.non_field_errors|join:", " }}</div>
+                                {% endif %}
+                                <div class="actions">
+                                    <button type="submit" class="button secondary">Mark as Returned</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                     {% endfor %}
@@ -72,7 +91,7 @@
                     <tbody>
                         {% for assignment in assignment_history %}
                         <tr>
-                            <td>{{ assignment.equipment.asset_code }} • {{ assignment.equipment.name }}</td>
+                            <td>{{ assignment.equipment.asset_code }} - {{ assignment.equipment.name }}</td>
                             <td>{{ assignment.assigned_at|date:"M j, Y h:i A" }}</td>
                             <td>{% if assignment.returned_at %}{{ assignment.returned_at|date:"M j, Y h:i A" }}{% else %}Active{% endif %}</td>
                             <td>{% if assignment.assigned_by %}{{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}{% else %}-{% endif %}</td>

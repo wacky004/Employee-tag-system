@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Supervisor{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Edit Supervisor</h1>
+                <p>Update supervisor details for the inventory management module.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:supervisor-list' %}" class="button secondary">Back to Supervisor List</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                <div class="actions">
+                    <button type="submit" class="button">Update Supervisor</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

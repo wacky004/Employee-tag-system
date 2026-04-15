@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Equipment{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Edit Equipment</h1>
+                <p>Update equipment details and status without changing assignment records.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:equipment-detail' equipment.pk %}" class="button secondary">Back to Equipment Detail</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                </div>
+                {% endfor %}
+                <div class="actions">
+                    <button type="submit" class="button">Update Equipment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

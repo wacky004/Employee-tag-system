@@ -5,7 +5,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
-from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView
+from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
     EquipmentAssignmentCreateForm,
@@ -49,6 +49,33 @@ def _build_assignment_history(equipment):
             }
         )
     return assignment_history
+
+
+def _get_active_assignment(equipment):
+    return equipment.assignments.filter(returned_at__isnull=True).select_related("employee", "assigned_by").first()
+
+
+def _return_equipment_assignment(equipment, returned_at, notes):
+    assignment = _get_active_assignment(equipment)
+    if not assignment:
+        return None
+
+    assignment.returned_at = returned_at
+    assignment.remarks = notes or assignment.remarks
+    assignment.save(update_fields=["returned_at", "remarks"])
+
+    equipment.current_employee = None
+    equipment.save(update_fields=["current_employee"])
+
+    EquipmentHistoryLog.objects.create(
+        equipment=equipment,
+        employee=assignment.employee,
+        assignment=assignment,
+        action=EquipmentHistoryLog.Action.RETURNED,
+        status_snapshot=equipment.status,
+        remarks=notes,
+    )
+    return assignment
 
 
 class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -321,9 +348,7 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         equipment = self.object
-        context["active_assignment"] = equipment.assignments.filter(returned_at__isnull=True).select_related(
-            "employee", "assigned_by"
-        ).first()
+        context["active_assignment"] = _get_active_assignment(equipment)
         context["assignment_history"] = _build_assignment_history(equipment)
         context["return_form"] = kwargs.get("return_form") or EquipmentReturnForm(prefix="return")
         return context
@@ -332,34 +357,17 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
         self.object = self.get_object()
         form = EquipmentReturnForm(request.POST, prefix="return")
         if form.is_valid():
-            self._return_equipment(
+            assignment = _return_equipment_assignment(
                 equipment=self.object,
                 returned_at=form.cleaned_data["returned_at"],
                 notes=form.cleaned_data["notes"],
             )
+            if not assignment:
+                messages.error(request, "This equipment has already been returned.")
+                return redirect("inventory:equipment-detail", pk=self.object.pk)
             messages.success(request, "Equipment returned successfully.")
             return redirect("inventory:equipment-detail", pk=self.object.pk)
         return self.render_to_response(self.get_context_data(return_form=form))
-
-    def _return_equipment(self, equipment, returned_at, notes):
-        assignment = get_object_or_404(
-            EquipmentAssignment.objects.select_related("employee"),
-            equipment=equipment,
-            returned_at__isnull=True,
-        )
-        assignment.returned_at = returned_at
-        assignment.remarks = notes or assignment.remarks
-        assignment.save(update_fields=["returned_at", "remarks"])
-        equipment.current_employee = None
-        equipment.save(update_fields=["current_employee"])
-        EquipmentHistoryLog.objects.create(
-            equipment=equipment,
-            employee=assignment.employee,
-            assignment=assignment,
-            action=EquipmentHistoryLog.Action.RETURNED,
-            status_snapshot=equipment.status,
-            remarks=notes,
-        )
 
 
 class EquipmentHistoryView(SuperAdminInventoryAccessMixin, DetailView):
@@ -389,6 +397,19 @@ class SupervisorCreateView(SuperAdminInventoryAccessMixin, CreateView):
 
     def form_valid(self, form):
         messages.success(self.request, "Supervisor created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:supervisor-list")
+
+
+class SupervisorUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+    model = Supervisor
+    form_class = SupervisorForm
+    template_name = "inventory/supervisor_update.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Supervisor updated successfully.")
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -457,11 +478,54 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         employee = self.object
-        context["current_equipment"] = Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+        current_equipment = list(
+            Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+        )
         context["assignment_history"] = EquipmentAssignment.objects.select_related(
             "equipment", "assigned_by"
         ).filter(employee=employee).order_by("-assigned_at", "-id")
+        context["current_equipment"] = current_equipment
+        context["current_equipment_rows"] = kwargs.get("current_equipment_rows") or [
+            {
+                "equipment": equipment,
+                "return_form": EquipmentReturnForm(prefix=f"return-{equipment.id}"),
+            }
+            for equipment in current_equipment
+        ]
         return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        equipment = get_object_or_404(
+            Equipment.objects.select_related("current_employee"),
+            pk=request.POST.get("equipment_id"),
+            current_employee=self.object,
+        )
+        form = EquipmentReturnForm(request.POST, prefix=f"return-{equipment.id}")
+        if form.is_valid():
+            assignment = _return_equipment_assignment(
+                equipment=equipment,
+                returned_at=form.cleaned_data["returned_at"],
+                notes=form.cleaned_data["notes"],
+            )
+            if not assignment:
+                messages.error(request, "This equipment has already been returned.")
+                return redirect("inventory:employee-detail", pk=self.object.pk)
+            messages.success(request, "Equipment returned successfully.")
+            return redirect("inventory:employee-detail", pk=self.object.pk)
+
+        current_equipment = list(
+            Equipment.objects.filter(current_employee=self.object).order_by("asset_code", "name")
+        )
+        current_equipment_rows = []
+        for item in current_equipment:
+            current_equipment_rows.append(
+                {
+                    "equipment": item,
+                    "return_form": form if item.id == equipment.id else EquipmentReturnForm(prefix=f"return-{item.id}"),
+                }
+            )
+        return self.render_to_response(self.get_context_data(current_equipment_rows=current_equipment_rows))
 
 
 class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
@@ -477,6 +541,19 @@ class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
         return reverse("inventory:employee-list")
 
 
+class EmployeeUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+    model = Employee
+    form_class = EmployeeForm
+    template_name = "inventory/employee_update.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Employee updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:employee-detail", kwargs={"pk": self.object.pk})
+
+
 class EmployeeAssignSupervisorView(SuperAdminInventoryAccessMixin, FormView):
     form_class = EmployeeAssignSupervisorForm
     template_name = "inventory/employee_assign_supervisor.html"
@@ -488,3 +565,16 @@ class EmployeeAssignSupervisorView(SuperAdminInventoryAccessMixin, FormView):
         employee.save(update_fields=["supervisor"])
         messages.success(self.request, "Employee assigned to supervisor successfully.")
         return redirect("inventory:employee-list")
+
+
+class EquipmentUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+    model = Equipment
+    form_class = EquipmentForm
+    template_name = "inventory/equipment_update.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Equipment updated successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:equipment-detail", kwargs={"pk": self.object.pk})

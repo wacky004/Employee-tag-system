@@ -228,6 +228,61 @@ class EquipmentCreateModuleTests(TestCase):
             ).exists()
         )
 
+    def test_super_admin_can_update_equipment_without_changing_assignment_history(self):
+        user = User.objects.create_user(
+            username="superupdateequipment",
+            email="superupdateequipment@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        category = EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+        employee = Employee.objects.create(full_name="Assigned Employee", employee_code="EMP-550")
+        equipment = Equipment.objects.create(
+            asset_code="COMP-0002",
+            name="Office Laptop",
+            category=category,
+            status=Equipment.Status.UNUSED,
+            current_employee=employee,
+        )
+        assignment = EquipmentAssignment.objects.create(
+            equipment=equipment,
+            employee=employee,
+            assigned_by=user,
+            remarks="Original assignment",
+        )
+        EquipmentHistoryLog.objects.create(
+            equipment=equipment,
+            employee=employee,
+            assignment=assignment,
+            action=EquipmentHistoryLog.Action.ASSIGNED,
+            status_snapshot=Equipment.Status.UNUSED,
+            remarks="Original assignment",
+        )
+
+        self.client.force_login(user)
+        response = self.client.post(
+            reverse("inventory:equipment-update", kwargs={"pk": equipment.pk}),
+            {
+                "name": "Office Laptop Updated",
+                "category": category.id,
+                "brand": "Dell",
+                "model": "Latitude 7450",
+                "serial_number": "SN-0002",
+                "asset_code": "COMP-0002",
+                "status": Equipment.Status.DEFECTIVE,
+                "notes": "Status updated during inspection",
+            },
+        )
+        equipment.refresh_from_db()
+        assignment.refresh_from_db()
+
+        self.assertRedirects(response, reverse("inventory:equipment-detail", kwargs={"pk": equipment.pk}))
+        self.assertEqual(equipment.name, "Office Laptop Updated")
+        self.assertEqual(equipment.status, Equipment.Status.DEFECTIVE)
+        self.assertEqual(equipment.current_employee, employee)
+        self.assertIsNone(assignment.returned_at)
+        self.assertEqual(assignment.remarks, "Original assignment")
+
 
 class EquipmentAssignmentModuleTests(TestCase):
     def setUp(self):
@@ -359,6 +414,67 @@ class EquipmentAssignmentModuleTests(TestCase):
                 equipment=self.equipment,
                 action=EquipmentHistoryLog.Action.RETURNED,
             ).exists()
+        )
+
+    def test_returned_equipment_becomes_available_for_reassignment(self):
+        assignment = EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+        )
+        self.equipment.current_employee = self.employee
+        self.equipment.save(update_fields=["current_employee"])
+
+        self.client.force_login(self.super_admin)
+        return_response = self.client.post(
+            reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}),
+            {
+                "return-returned_at": "2026-04-16T09:30",
+                "return-notes": "Returned and ready for reassignment",
+            },
+        )
+
+        new_employee = Employee.objects.create(full_name="Replacement Employee", employee_code="EMP-902")
+        assign_response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": self.equipment.id,
+                "employee": new_employee.id,
+                "assigned_at": "2026-04-16T11:00",
+                "notes": "Reassigned after return",
+            },
+        )
+        assignment.refresh_from_db()
+        self.equipment.refresh_from_db()
+
+        self.assertRedirects(return_response, reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+        self.assertRedirects(assign_response, reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+        self.assertIsNotNone(assignment.returned_at)
+        self.assertEqual(self.equipment.current_employee, new_employee)
+
+    def test_cannot_return_equipment_twice(self):
+        assignment = EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+            returned_at=timezone.make_aware(timezone.datetime(2026, 4, 16, 9, 30)),
+        )
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}),
+            {
+                "return-returned_at": "2026-04-16T10:00",
+                "return-notes": "Second return attempt",
+            },
+            follow=True,
+        )
+        assignment.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already been returned")
+        self.assertEqual(
+            assignment.returned_at,
+            timezone.make_aware(timezone.datetime(2026, 4, 16, 9, 30)),
         )
 
     def test_equipment_detail_shows_current_holder(self):
@@ -502,6 +618,50 @@ class SupervisorEmployeeManagementTests(TestCase):
         self.assertRedirects(response, reverse("inventory:employee-list"))
         self.assertEqual(employee.supervisor, supervisor)
 
+    def test_super_admin_can_update_supervisor(self):
+        supervisor = Supervisor.objects.create(full_name="Supervisor Two", employee_code="SUP-102")
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:supervisor-update", kwargs={"pk": supervisor.pk}),
+            {
+                "full_name": "Supervisor Two Updated",
+                "employee_code": "SUP-102",
+                "department": "Operations",
+                "job_title": "Area Supervisor",
+                "is_active": "on",
+            },
+        )
+        supervisor.refresh_from_db()
+
+        self.assertRedirects(response, reverse("inventory:supervisor-list"))
+        self.assertEqual(supervisor.full_name, "Supervisor Two Updated")
+        self.assertEqual(supervisor.job_title, "Area Supervisor")
+
+    def test_super_admin_can_update_employee(self):
+        supervisor = Supervisor.objects.create(full_name="Supervisor Three", employee_code="SUP-103")
+        employee = Employee.objects.create(full_name="Employee Three", employee_code="EMP-202")
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:employee-update", kwargs={"pk": employee.pk}),
+            {
+                "full_name": "Employee Three Updated",
+                "employee_code": "EMP-202",
+                "department": "Operations",
+                "team_name": "Warehouse",
+                "job_title": "Lead Clerk",
+                "supervisor": supervisor.id,
+                "is_active": "on",
+            },
+        )
+        employee.refresh_from_db()
+
+        self.assertRedirects(response, reverse("inventory:employee-detail", kwargs={"pk": employee.pk}))
+        self.assertEqual(employee.full_name, "Employee Three Updated")
+        self.assertEqual(employee.supervisor, supervisor)
+        self.assertEqual(employee.job_title, "Lead Clerk")
+
     def test_employee_list_search_filters_by_name_id_and_supervisor(self):
         supervisor = Supervisor.objects.create(full_name="Target Supervisor", employee_code="SUP-103")
         Employee.objects.create(full_name="Alice Cruz", employee_code="EMP-300", supervisor=supervisor)
@@ -524,9 +684,17 @@ class SupervisorEmployeeManagementTests(TestCase):
 
         supervisor_response = self.client.get(reverse("inventory:supervisor-list"))
         employee_response = self.client.get(reverse("inventory:employee-list"))
+        supervisor_update_response = self.client.get(
+            reverse("inventory:supervisor-update", kwargs={"pk": Supervisor.objects.create(full_name="Locked", employee_code="SUP-104").pk})
+        )
+        employee_update_response = self.client.get(
+            reverse("inventory:employee-update", kwargs={"pk": Employee.objects.create(full_name="Locked Employee", employee_code="EMP-203").pk})
+        )
 
         self.assertRedirects(supervisor_response, reverse("accounts:manager-dashboard"))
         self.assertRedirects(employee_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(supervisor_update_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(employee_update_response, reverse("accounts:manager-dashboard"))
 
 
 class EmployeeSearchModuleTests(TestCase):
@@ -581,3 +749,38 @@ class EmployeeSearchModuleTests(TestCase):
         self.assertContains(response, "Search Supervisor")
         self.assertContains(response, "Laptop Search")
         self.assertContains(response, "Issued for inventory work")
+
+    def test_employee_detail_shows_return_action_for_current_equipment(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:employee-detail", kwargs={"pk": self.employee.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mark as Returned")
+        self.assertContains(response, "Open equipment detail")
+
+    def test_super_admin_can_return_equipment_from_employee_detail(self):
+        self.equipment.last_assigned_at = timezone.make_aware(timezone.datetime(2026, 4, 15, 9, 0))
+        self.equipment.save(update_fields=["last_assigned_at"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:employee-detail", kwargs={"pk": self.employee.pk}),
+            {
+                "equipment_id": self.equipment.id,
+                "return-{}".format(self.equipment.id) + "-returned_at": "2026-04-16T14:00",
+                "return-{}".format(self.equipment.id) + "-notes": "Returned from employee detail",
+            },
+        )
+        self.equipment.refresh_from_db()
+        assignment = EquipmentAssignment.objects.get(equipment=self.equipment, employee=self.employee)
+
+        self.assertRedirects(response, reverse("inventory:employee-detail", kwargs={"pk": self.employee.pk}))
+        self.assertIsNone(self.equipment.current_employee)
+        self.assertIsNotNone(assignment.returned_at)
+        self.assertTrue(
+            EquipmentHistoryLog.objects.filter(
+                equipment=self.equipment,
+                action=EquipmentHistoryLog.Action.RETURNED,
+                remarks="Returned from employee detail",
+            ).exists()
+        )

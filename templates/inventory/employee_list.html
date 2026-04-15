@@ -58,23 +58,25 @@
                             <th>Department</th>
                             <th>Team</th>
                             <th>Job Title</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for employee in employees %}
                         <tr>
                             <td>
-                                <strong>{{ employee.full_name }}</strong>
+                                <strong><a href="{% url 'inventory:employee-detail' employee.pk %}">{{ employee.full_name }}</a></strong>
                                 <div class="muted">{{ employee.employee_code }}</div>
                             </td>
                             <td>{% if employee.supervisor %}{{ employee.supervisor.full_name }}{% else %}-{% endif %}</td>
                             <td>{{ employee.department|default:"-" }}</td>
                             <td>{{ employee.team_name|default:"-" }}</td>
                             <td>{{ employee.job_title|default:"-" }}</td>
+                            <td><a href="{% url 'inventory:employee-update' employee.pk %}">Edit</a></td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="muted">No employees found.</td>
+                            <td colspan="6" class="muted">No employees found.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
