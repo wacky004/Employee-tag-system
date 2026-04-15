@@ -23,6 +23,7 @@ urlpatterns = [
     path("", include("core.urls")),
     path("", include("attendance.urls")),
     path("inventory/", include("inventory.urls")),
+    path("tagging/", include("tagging.urls")),
     path("reports/", include("reports.urls")),
     path("admin/", admin.site.urls),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),

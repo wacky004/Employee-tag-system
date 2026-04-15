@@ -12,7 +12,7 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
-                <a href="{% url 'attendance:correction-review' %}" class="button secondary">Corrections</a>
+                <a href="{% url 'tagging:dashboard' %}" class="button secondary">Tagging</a>
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
                 <a href="{% url 'core:settings' %}" class="button secondary">Settings</a>
                 <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
@@ -40,11 +40,11 @@
                 </div>
             </div>
             <div class="card">
-                <h3>Attendance Corrections</h3>
-                <div class="stat">Review</div>
-                <p>Review correction requests and monitor attendance-related admin actions from one place.</p>
+                <h3>Employee Tagging</h3>
+                <div class="stat">Module</div>
+                <p>Open the dedicated tagging module to review corrections, inspect recent logs, and monitor tagging activity.</p>
                 <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'attendance:correction-review' %}" class="button">Open Corrections</a>
+                    <a href="{% url 'tagging:dashboard' %}" class="button">Open Tagging</a>
                 </div>
             </div>
             <div class="card">

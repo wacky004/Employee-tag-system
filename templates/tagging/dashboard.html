@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Tagging{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Employee Tagging</h1>
+                <p>Dedicated module for employee tagging, corrections, and daily tagging activity.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'attendance:correction-review' %}" class="button secondary">Correction Review</a>
+                <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Tagging operations in one place</h2>
+            <p>Use this module to review correction requests, monitor recent tagging activity, and inspect daily tagging volume without exposing the workflow directly on the super admin dashboard.</p>
+        </section>
+
+        <div class="mini-grid">
+            <div class="mini-card">
+                <h4>Logs Today</h4>
+                <div class="value">{{ total_logs_today }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Employees Tagged</h4>
+                <div class="value">{{ employees_tagged_today }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Active Tag Types</h4>
+                <div class="value">{{ active_tag_types }}</div>
+            </div>
+            <div class="mini-card">
+                <h4>Work Date</h4>
+                <div class="value">{{ work_date|date:"M j" }}</div>
+            </div>
+        </div>
+
+        <div class="grid" style="margin-top: 20px;">
+            <div class="card">
+                <h3>Correction Review</h3>
+                <div class="stat">Queue</div>
+                <p>Open the correction review page to approve, reject, or inspect tagging-related correction requests.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'attendance:correction-review' %}" class="button">Open Correction Review</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Reports</h3>
+                <div class="stat">Attendance</div>
+                <p>Use attendance reports to inspect daily summaries, exports, and employee tagging outcomes.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'reports:center' %}" class="button">Open Reports</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Today's Tag Summary</h3>
+                    <span class="badge">{{ summary_rows|length }}</span>
+                </div>
+                {% if summary_rows %}
+                <div class="list">
+                    {% for row in summary_rows %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ row.tag_type__name }}</strong>
+                            <p>{{ row.total }} log{{ row.total|pluralize }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No tag logs recorded for today yet.</div>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Recent Tag Logs</h3>
+                    <span class="badge">{{ recent_logs|length }}</span>
+                </div>
+                {% if recent_logs %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Tag</th>
+                                <th>Time</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in recent_logs %}
+                            <tr>
+                                <td>{{ log.employee.get_full_name|default:log.employee.username }}</td>
+                                <td>{{ log.tag_type.name }}</td>
+                                <td>{{ log.timestamp|date:"M j, Y h:i A" }}</td>
+                                <td>{{ log.get_source_display }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">No recent tag logs to display.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
