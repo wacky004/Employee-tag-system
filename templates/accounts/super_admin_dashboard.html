@@ -31,9 +31,29 @@
 
         <div class="grid">
             <div class="card">
+                <h3>Inventory Management</h3>
+                <div class="stat">Module</div>
+                <p>Open the inventory module to manage equipment, employees, supervisors, assignments, reports, and audit logs.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'inventory:dashboard' %}" class="button">Open Inventory</a>
+                    <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">Inventory Reports</a>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Attendance Corrections</h3>
+                <div class="stat">Review</div>
+                <p>Review correction requests and monitor attendance-related admin actions from one place.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'attendance:correction-review' %}" class="button">Open Corrections</a>
+                </div>
+            </div>
+            <div class="card">
                 <h3>System Settings</h3>
                 <div class="stat">Global rules</div>
                 <p>Lunch, break, bio, late, timezone, work setup, and correction permissions live in the new settings center.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'core:settings' %}" class="button">Open Settings</a>
+                </div>
             </div>
             <div class="card">
                 <h3>User Management</h3>
@@ -44,11 +64,10 @@
                 <h3>Reports</h3>
                 <div class="stat">Exports</div>
                 <p>Company-wide attendance summaries and Excel export shortcuts can be surfaced here.</p>
-            </div>
-            <div class="card">
-                <h3>Inventory Management</h3>
-                <div class="stat">Module</div>
-                <p>Use this as the first optional business module so each tenant can enable inventory only when they need it.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'reports:center' %}" class="button">Open Reports</a>
+                    <a href="/admin/" class="button secondary">Django Admin</a>
+                </div>
             </div>
         </div>
     </div>
