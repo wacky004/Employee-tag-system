@@ -4,133 +4,180 @@
 
 {% block content %}
 <div class="page">
-    <div class="shell">
-        <div class="topbar">
-            <div class="brand">
-                <h1>Inventory Management</h1>
-                <p>Choose the inventory area you want to open.</p>
-            </div>
-            <div class="actions">
-                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
-                <a href="{% url 'inventory:summary' %}" class="button secondary">Summary</a>
-                <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">Reports</a>
-                {% if can_manage_inventory %}
-                <a href="{% url 'inventory:audit-log-list' %}" class="button secondary">Audit Log</a>
-                {% endif %}
-                {% if request.user.role == "SUPER_ADMIN" %}
-                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
-                {% else %}
-                <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary">Back to Monitoring</a>
-                {% endif %}
-            </div>
-        </div>
-
-        <section class="hero">
-            <h2>Dedicated inventory workspace</h2>
-            <p>Use this page as the entry point for equipment, employees, supervisors, assignments, reports, and inventory history.</p>
-        </section>
-
-        <div class="mini-grid">
-            <div class="mini-card">
-                <h4>Total Equipment</h4>
-                <div class="value">{{ equipment_list|length }}</div>
-            </div>
-            <div class="mini-card">
-                <h4>Total Supervisors</h4>
-                <div class="value">{{ supervisors|length }}</div>
-            </div>
-            <div class="mini-card">
-                <h4>Total Employees</h4>
-                <div class="value">{{ employees|length }}</div>
-            </div>
-            <div class="mini-card">
-                <h4>Recent Assignments</h4>
-                <div class="value">{{ recent_assignments|length }}</div>
-            </div>
-        </div>
-
-        <div class="grid" style="margin-top: 20px;">
-            <div class="card">
-                <h3>Equipment</h3>
-                <div class="stat">{{ equipment_list|length }}</div>
-                <p>Create equipment, update details, review holders, and track full equipment history.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    {% if can_manage_inventory %}
-                    <a href="{% url 'inventory:equipment-create' %}" class="button">Create Equipment</a>
-                    {% endif %}
-                    <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">View Equipment</a>
+    <div class="shell inventory-shell">
+        <div class="inventory-layout">
+            <aside class="inventory-sidebar">
+                <div class="inventory-sidebar__head">
+                    <p class="inventory-sidebar__eyebrow">Module</p>
+                    <h2>Inventory</h2>
+                    <p>Equipment, assignments, people, and reporting in one workspace.</p>
                 </div>
-            </div>
 
-            <div class="card">
-                <h3>Supervisors</h3>
-                <div class="stat">{{ supervisors|length }}</div>
-                <p>Manage supervisor records used by the inventory employee module.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'inventory:supervisor-list' %}" class="button">Supervisor List</a>
+                <nav class="inventory-nav" aria-label="Inventory navigation">
+                    <a href="{% url 'inventory:dashboard' %}" class="inventory-nav__item active">
+                        <span class="inventory-nav__title">Dashboard</span>
+                        <span class="inventory-nav__meta">Summary and monitoring</span>
+                    </a>
+                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Equipment</span>
+                        <span class="inventory-nav__meta">Assets and status views</span>
+                    </a>
+                    <a href="{% url 'inventory:equipment-assign' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Assignments</span>
+                        <span class="inventory-nav__meta">Issue and return assets</span>
+                    </a>
+                    <a href="{% url 'inventory:employee-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Employees</span>
+                        <span class="inventory-nav__meta">Inventory-only employee records</span>
+                    </a>
+                    <a href="{% url 'inventory:supervisor-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Supervisors</span>
+                        <span class="inventory-nav__meta">Supervisor directory</span>
+                    </a>
+                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Reports</span>
+                        <span class="inventory-nav__meta">Filtering and summary pages</span>
+                    </a>
                     {% if can_manage_inventory %}
-                    <a href="{% url 'inventory:supervisor-create' %}" class="button secondary">Create Supervisor</a>
+                    <a href="{% url 'inventory:audit-log-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Audit Log</span>
+                        <span class="inventory-nav__meta">Recent inventory actions</span>
+                    </a>
+                    {% endif %}
+                </nav>
+
+                <div class="inventory-sidebar__footer">
+                    {% if request.user.role == "SUPER_ADMIN" %}
+                    <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary inventory-sidebar__back">Back to Super Admin</a>
+                    {% else %}
+                    <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary inventory-sidebar__back">Back to Monitoring</a>
                     {% endif %}
                 </div>
-            </div>
+            </aside>
 
-            <div class="card">
-                <h3>Employees</h3>
-                <div class="stat">{{ employees|length }}</div>
-                <p>Open employee management, search employees, and review assigned equipment by employee.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'inventory:employee-list' %}" class="button">Employee List</a>
-                    <a href="{% url 'inventory:employee-search' %}" class="button secondary">Search Employees</a>
-                </div>
-            </div>
+            <main class="inventory-main">
+                <header class="inventory-header">
+                    <div>
+                        <p class="inventory-header__eyebrow">Inventory Module</p>
+                        <h1>Inventory Management</h1>
+                        <p class="inventory-header__summary">Monitor asset availability, assignment load, status distribution, and the latest inventory actions from one clean dashboard.</p>
+                    </div>
+                    <div class="inventory-header__actions">
+                        <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                        <a href="{% url 'inventory:summary' %}" class="button secondary">Summary</a>
+                    </div>
+                </header>
 
-            <div class="card">
-                <h3>Assignments</h3>
-                <div class="stat">{{ recent_assignments|length }}</div>
-                <p>Assign equipment to employees and review equipment detail pages for returns and holder history.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    {% if can_manage_inventory %}
-                    <a href="{% url 'inventory:equipment-assign' %}" class="button">Assign Equipment</a>
-                    {% endif %}
-                    <a href="{% url 'inventory:assigned-equipment-report' %}" class="button secondary">Assigned Items</a>
-                </div>
-            </div>
+                <section class="inventory-section">
+                    <div class="inventory-section__head">
+                        <div>
+                            <h2>Overview</h2>
+                            <p>Core inventory KPIs for today’s monitoring.</p>
+                        </div>
+                    </div>
+                    <div class="inventory-kpi-grid">
+                        <article class="inventory-kpi">
+                            <span class="inventory-kpi__label">Total Equipment</span>
+                            <strong class="inventory-kpi__value">{{ total_equipment }}</strong>
+                            <span class="inventory-kpi__hint">Tracked assets in inventory</span>
+                        </article>
+                        <article class="inventory-kpi">
+                            <span class="inventory-kpi__label">Assigned</span>
+                            <strong class="inventory-kpi__value">{{ total_assigned }}</strong>
+                            <span class="inventory-kpi__hint">Currently issued items</span>
+                        </article>
+                        <article class="inventory-kpi">
+                            <span class="inventory-kpi__label">Available</span>
+                            <strong class="inventory-kpi__value">{{ total_available }}</strong>
+                            <span class="inventory-kpi__hint">Ready for reassignment</span>
+                        </article>
+                        <article class="inventory-kpi">
+                            <span class="inventory-kpi__label">Defective</span>
+                            <strong class="inventory-kpi__value">{{ total_defective }}</strong>
+                            <span class="inventory-kpi__hint">Need review or repair</span>
+                        </article>
+                        <article class="inventory-kpi">
+                            <span class="inventory-kpi__label">Employees</span>
+                            <strong class="inventory-kpi__value">{{ total_employees }}</strong>
+                            <span class="inventory-kpi__hint">Inventory-linked employee records</span>
+                        </article>
+                    </div>
+                </section>
 
-            <div class="card">
-                <h3>Reports</h3>
-                <div class="stat">{{ status_cards|length }}</div>
-                <p>Filter equipment and open quick summary reports for defective, unused, assigned, or unassigned items.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'inventory:equipment-report-list' %}" class="button">Open Reports</a>
-                    <a href="{% url 'inventory:summary' %}" class="button secondary">Open Summary</a>
-                </div>
-            </div>
+                <section class="inventory-section">
+                    <div class="inventory-section__head">
+                        <div>
+                            <h2>Equipment Status Overview</h2>
+                            <p>Quick distribution of asset condition and readiness.</p>
+                        </div>
+                    </div>
+                    <div class="inventory-status-row">
+                        {% for card in status_cards %}
+                        <article class="inventory-status-pill inventory-status-pill--{{ card.code|lower }}">
+                            <span class="inventory-status-pill__label">{{ card.label }}</span>
+                            <strong class="inventory-status-pill__value">{{ card.total }}</strong>
+                        </article>
+                        {% endfor %}
+                    </div>
+                </section>
 
-            {% if can_manage_inventory %}
-            <div class="card">
-                <h3>Audit Trail</h3>
-                <div class="stat">Logs</div>
-                <p>Review important inventory actions such as created, edited, assigned, and returned equipment.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'inventory:audit-log-list' %}" class="button">Open Audit Log</a>
-                </div>
-            </div>
-            {% endif %}
-        </div>
+                <section class="inventory-main-grid">
+                    <div class="inventory-section inventory-section--fill">
+                        <div class="inventory-section__head">
+                            <div>
+                                <h2>Recent Activity</h2>
+                                <p>Latest created, edited, assigned, and returned actions.</p>
+                            </div>
+                        </div>
+                        <div class="table-wrap inventory-table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Action</th>
+                                        <th>Actor</th>
+                                        <th>Target</th>
+                                        <th>Notes</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for log in recent_activity %}
+                                    <tr>
+                                        <td>{{ log.get_action_display }}</td>
+                                        <td>{% if log.actor %}{{ log.actor.get_full_name|default:log.actor.username }}{% else %}-{% endif %}</td>
+                                        <td>{{ log.target_type|title }} #{{ log.target_id }}</td>
+                                        <td>{{ log.notes|default:"-" }}</td>
+                                        <td>{{ log.timestamp|date:"M j, Y h:i A" }}</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="muted">No recent activity found.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
-        <div class="card" style="margin-top: 20px;">
-            <div class="section-head">
-                <h3>Equipment Status Overview</h3>
-                <span class="badge">{{ equipment_list|length }}</span>
-            </div>
-            <div class="mini-grid">
-                {% for card in status_cards %}
-                <div class="mini-card">
-                    <h4>{{ card.label }}</h4>
-                    <div class="value">{{ card.total }}</div>
-                </div>
-                {% endfor %}
-            </div>
+                    <div class="inventory-section inventory-section--side">
+                        <div class="inventory-section__head">
+                            <div>
+                                <h2>Quick Actions</h2>
+                                <p>Common inventory tasks.</p>
+                            </div>
+                        </div>
+                        <div class="inventory-quick-actions">
+                            {% if can_manage_inventory %}
+                            <a href="{% url 'inventory:equipment-create' %}" class="button">Add Equipment</a>
+                            <a href="{% url 'inventory:equipment-assign' %}" class="button secondary">Assign Equipment</a>
+                            <a href="{% url 'inventory:employee-create' %}" class="button secondary">Add Employee</a>
+                            {% endif %}
+                            <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">View Equipment</a>
+                            <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective Report</a>
+                        </div>
+                    </div>
+                </section>
+            </main>
         </div>
     </div>
 </div>

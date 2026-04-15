@@ -225,6 +225,12 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
         summary_counts = {status: 0 for status, _label in Equipment.Status.choices}
         for row in equipment_list.values("status").annotate(total=Count("id")):
             summary_counts[row["status"]] = row["total"]
+        total_equipment = equipment_list.count()
+        total_assigned = equipment_list.filter(current_employee__isnull=False).count()
+        total_available = equipment_list.filter(current_employee__isnull=True).count()
+        recent_activity = list(
+            InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")[:8]
+        )
 
         context.update(
             {
@@ -257,6 +263,12 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 "selected_employee_id": selected_employee_id,
                 "selected_equipment_id": selected_equipment_id,
                 "can_manage_inventory": self.request.user.role == User.Role.SUPER_ADMIN,
+                "total_equipment": total_equipment,
+                "total_assigned": total_assigned,
+                "total_available": total_available,
+                "total_defective": summary_counts.get(Equipment.Status.DEFECTIVE, 0),
+                "total_employees": Employee.objects.count(),
+                "recent_activity": recent_activity,
                 "status_cards": [
                     {"code": code, "label": label, "total": summary_counts.get(code, 0)}
                     for code, label in Equipment.Status.choices
