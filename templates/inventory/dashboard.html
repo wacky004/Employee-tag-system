@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Inventory Management</h1>
-                <p>A starter business module you can enable for tenants that need stock, receiving, and issuance workflows.</p>
+                <p>Manage equipment, assignments, supervisors, and employee inventory history from one module.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
@@ -26,79 +26,349 @@
         </div>
 
         <section class="hero">
-            <h2>Inventory as a tenant-ready module</h2>
-            <p>Attendance can stay the core platform, while inventory becomes one of the add-on modules each tenant enables based on their business. This page is the first entry point for that modular direction.</p>
+            <h2>Equipment ownership and history in one place</h2>
+            <p>Super admins can add non-login inventory employees, define supervisors, create equipment, assign assets, and keep a full equipment history log for every holder.</p>
         </section>
 
-        <div class="grid">
-            <div class="card">
-                <h3>Inventory Overview</h3>
-                <div class="stat">Stock</div>
-                <p>Surface current stock counts, low-stock alerts, and recently moved items from one module home.</p>
+        <div class="mini-grid">
+            {% for card in status_cards %}
+            <div class="mini-card">
+                <h4>{{ card.label }}</h4>
+                <div class="value">{{ card.total }}</div>
             </div>
-            <div class="card">
-                <h3>Receiving and Issuance</h3>
-                <div class="stat">Flows</div>
-                <p>Track incoming deliveries, item issuance, internal requests, and returned stock as the next workflow layer.</p>
+            {% endfor %}
+        </div>
+
+        {% if can_manage_inventory %}
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Create Supervisor</h3>
+                        <span class="badge good">No login needed</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="create_supervisor">
+                        {% for field in supervisor_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="actions">
+                            <button type="submit" class="button">Add Supervisor</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Create Employee</h3>
+                        <span class="badge">Under supervisor</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="create_user">
+                        {% for field in user_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="actions">
+                            <button type="submit" class="button">Add Employee</button>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <div class="card">
-                <h3>Tenant Modules</h3>
-                <div class="stat">Flexible</div>
-                <p>Use feature flags later so one company can subscribe only to attendance while another also enables inventory.</p>
+
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Create Equipment</h3>
+                        <span class="badge">Tagged assets</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="create_equipment">
+                        {% for field in equipment_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="actions">
+                            <button type="submit" class="button">Create Equipment</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Assign Equipment</h3>
+                        <span class="badge warn">History preserved</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="assign_equipment">
+                        {% for field in assignment_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% if assignment_form.non_field_errors %}
+                        <div class="muted">{{ assignment_form.non_field_errors|join:", " }}</div>
+                        {% endif %}
+                        <div class="actions">
+                            <button type="submit" class="button">Assign Equipment</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card" style="margin-top: 20px;">
+            <form method="get">
+                <div class="section-head">
+                    <h3>Search Employee</h3>
+                    <div class="actions">
+                        <a href="{% url 'inventory:dashboard' %}" class="button ghost">Reset</a>
+                        <button type="submit" class="button">Search</button>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="field">
+                        <label for="q">Employee Search</label>
+                        <input type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee code, team, or department">
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Supervisors</h3>
+                        <span class="badge">{{ supervisors|length }}</span>
+                    </div>
+                    {% if supervisors %}
+                    <div class="list">
+                        {% for supervisor in supervisors %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ supervisor.full_name }}</strong>
+                                <p>{{ supervisor.employee_code }}{% if supervisor.job_title %} • {{ supervisor.job_title }}{% endif %}</p>
+                            </div>
+                            <span class="badge good">{{ supervisor.member_count }} user{{ supervisor.member_count|pluralize }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No supervisors created yet.</div>
+                    {% endif %}
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Employees</h3>
+                        <span class="muted">{{ inventory_users|length }} result{{ inventory_users|length|pluralize }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Supervisor</th>
+                                    <th>Team</th>
+                                    <th>Equipment Held</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for person in inventory_users %}
+                                <tr>
+                                    <td>
+                                        <a href="?user={{ person.id }}{% if query %}&q={{ query }}{% endif %}"><strong>{{ person.full_name }}</strong></a>
+                                        <div class="muted">{{ person.employee_code }}{% if person.is_supervisor %} • Supervisor{% endif %}</div>
+                                    </td>
+                                    <td>{% if person.supervisor %}{{ person.supervisor.full_name }}{% elif person.is_supervisor %}Supervisor{% else %}-{% endif %}</td>
+                                    <td>{{ person.team_name|default:"-" }}</td>
+                                    <td>{{ person.current_equipment.count }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="muted">No inventory employees found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Equipment Inventory</h3>
+                        <span class="badge">{{ equipment_list|length }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Equipment</th>
+                                    <th>Status</th>
+                                    <th>Current Holder</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for equipment in equipment_list %}
+                                <tr>
+                                    <td>
+                                        <a href="?equipment={{ equipment.id }}{% if query %}&q={{ query }}{% endif %}{% if selected_user %}&user={{ selected_user.id }}{% endif %}">
+                                            <strong>{{ equipment.asset_code }}</strong>
+                                        </a>
+                                        <div class="muted">{{ equipment.name }}{% if equipment.brand %} • {{ equipment.brand }}{% endif %}</div>
+                                    </td>
+                                    <td>{{ equipment.get_status_display }}</td>
+                                    <td>{% if equipment.current_holder %}{{ equipment.current_holder.full_name }}{% else %}-{% endif %}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="muted">No equipment created yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Recent Assignment History</h3>
+                        <span class="badge">{{ recent_assignments|length }}</span>
+                    </div>
+                    {% if recent_assignments %}
+                    <div class="list">
+                        {% for assignment in recent_assignments %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ assignment.equipment.asset_code }} • {{ assignment.holder.full_name }}</strong>
+                                <p>
+                                    {{ assignment.assigned_at|date:"M j, Y h:i A" }}
+                                    {% if assignment.assigned_by %} • by {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}{% endif %}
+                                </p>
+                            </div>
+                            {% if assignment.returned_at %}
+                            <span class="badge">Closed</span>
+                            {% else %}
+                            <span class="badge good">Active</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No equipment history yet.</div>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
         <div class="dashboard-grid" style="margin-top: 20px;">
             <div class="card">
                 <div class="section-head">
-                    <h3>Suggested Inventory Tables</h3>
+                    <h3>Employee Detail</h3>
+                    {% if selected_user %}
+                    <span class="badge good">{{ selected_user.employee_code }}</span>
+                    {% endif %}
                 </div>
+                {% if selected_user %}
+                <p><strong>{{ selected_user.full_name }}</strong></p>
+                <p class="muted">
+                    {% if selected_user.job_title %}{{ selected_user.job_title }} • {% endif %}
+                    {{ selected_user.department_name|default:"No department" }}
+                    {% if selected_user.team_name %} • {{ selected_user.team_name }}{% endif %}
+                </p>
+                <p class="muted">
+                    Supervisor:
+                    {% if selected_user.supervisor %}{{ selected_user.supervisor.full_name }}{% elif selected_user.is_supervisor %}Self-managed supervisor{% else %}-{% endif %}
+                </p>
+                <div class="section-head" style="margin-top: 18px;">
+                    <h3>Current Equipment</h3>
+                    <span class="badge">{{ selected_user_current_equipment|length }}</span>
+                </div>
+                {% if selected_user_current_equipment %}
                 <div class="list">
+                    {% for equipment in selected_user_current_equipment %}
                     <div class="list-item">
                         <div>
-                            <strong>Items</strong>
-                            <p>Master list of SKUs, descriptions, units, categories, and reorder thresholds.</p>
+                            <strong>{{ equipment.asset_code }} • {{ equipment.name }}</strong>
+                            <p>{{ equipment.get_status_display }}</p>
                         </div>
                     </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Stock Movements</strong>
-                            <p>Every stock in, stock out, adjustment, and transfer becomes an auditable movement record.</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Suppliers and Locations</strong>
-                            <p>Track who supplied the inventory and where it is stored for each tenant location.</p>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <div class="empty-state">This employee is not currently holding any equipment.</div>
+                {% endif %}
+
+                <div class="section-head" style="margin-top: 18px;">
+                    <h3>Assignment History</h3>
+                    <span class="badge">{{ selected_user_history|length }}</span>
+                </div>
+                {% if selected_user_history %}
+                <div class="list">
+                    {% for entry in selected_user_history %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ entry.equipment.asset_code }} • {{ entry.equipment.name }}</strong>
+                            <p>Assigned {{ entry.assigned_at|date:"M j, Y h:i A" }}{% if entry.returned_at %} • Closed {{ entry.returned_at|date:"M j, Y h:i A" }}{% endif %}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No assignment history for this employee yet.</div>
+                {% endif %}
+                {% else %}
+                <div class="empty-state">Search or click an employee to view individual inventory history.</div>
+                {% endif %}
             </div>
 
             <div class="card">
                 <div class="section-head">
-                    <h3>Next Build Steps</h3>
+                    <h3>Equipment History Log</h3>
+                    {% if selected_equipment %}
+                    <span class="badge warn">{{ selected_equipment.asset_code }}</span>
+                    {% endif %}
                 </div>
+                {% if selected_equipment %}
+                <p><strong>{{ selected_equipment.name }}</strong></p>
+                <p class="muted">{{ selected_equipment.get_status_display }}{% if selected_equipment.current_holder %} • Current holder: {{ selected_equipment.current_holder.full_name }}{% endif %}</p>
+                {% if selected_equipment_history %}
                 <div class="list">
+                    {% for entry in selected_equipment_history %}
                     <div class="list-item">
                         <div>
-                            <strong>1. Add tenant ownership</strong>
-                            <p>Introduce a Company or Tenant model first so inventory data stays isolated per client.</p>
+                            <strong>{{ entry.holder.full_name }}</strong>
+                            <p>{{ entry.holder.employee_code }} • {{ entry.assigned_at|date:"M j, Y h:i A" }}{% if entry.returned_at %} • Closed {{ entry.returned_at|date:"M j, Y h:i A" }}{% endif %}</p>
                         </div>
                     </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>2. Define module access</strong>
-                            <p>Let each tenant enable attendance, inventory, or both without changing code.</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>3. Build item and movement screens</strong>
-                            <p>Start with item master, stock in, stock out, and inventory reporting.</p>
-                        </div>
-                    </div>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <div class="empty-state">This equipment does not have assignment history yet.</div>
+                {% endif %}
+                {% else %}
+                <div class="empty-state">Click an equipment record to view all holders that have been assigned to it.</div>
+                {% endif %}
             </div>
         </div>
     </div>
