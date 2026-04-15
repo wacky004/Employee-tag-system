@@ -69,6 +69,29 @@ def _create_audit_log(action, actor, target, notes=""):
     )
 
 
+def _filter_equipment_queryset(queryset, params):
+    status = params.get("status", "").strip()
+    category = params.get("category", "").strip()
+    brand = params.get("brand", "").strip()
+    supervisor = params.get("supervisor", "").strip()
+    assignment = params.get("assignment", "").strip()
+
+    if status:
+        queryset = queryset.filter(status=status)
+    if category:
+        queryset = queryset.filter(category_id=category)
+    if brand:
+        queryset = queryset.filter(brand__icontains=brand)
+    if supervisor:
+        queryset = queryset.filter(current_employee__supervisor_id=supervisor)
+    if assignment == "assigned":
+        queryset = queryset.filter(current_employee__isnull=False)
+    elif assignment == "unassigned":
+        queryset = queryset.filter(current_employee__isnull=True)
+
+    return queryset
+
+
 def _get_active_assignment(equipment):
     return equipment.assignments.filter(returned_at__isnull=True).select_related("employee", "assigned_by").first()
 
@@ -341,6 +364,93 @@ class AuditLogListView(SuperAdminInventoryAccessMixin, ListView):
 
     def get_queryset(self):
         return InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+
+
+class EquipmentReportListView(InventoryAccessMixin, ListView):
+    model = Equipment
+    template_name = "inventory/equipment_report_list.html"
+    context_object_name = "equipment_list"
+
+    report_title = "Equipment Report"
+    report_description = "Browse equipment with filter options."
+
+    def get_queryset(self):
+        queryset = Equipment.objects.select_related(
+            "category",
+            "current_employee",
+            "current_employee__supervisor",
+        ).order_by("asset_code", "name")
+        return _filter_equipment_queryset(queryset, self.request.GET)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "report_title": self.report_title,
+                "report_description": self.report_description,
+                "status_choices": Equipment.Status.choices,
+                "categories": EquipmentCategory.objects.order_by("name"),
+                "supervisors": Supervisor.objects.order_by("full_name", "employee_code"),
+                "selected_status": self.request.GET.get("status", "").strip(),
+                "selected_category": self.request.GET.get("category", "").strip(),
+                "brand_query": self.request.GET.get("brand", "").strip(),
+                "selected_supervisor": self.request.GET.get("supervisor", "").strip(),
+                "selected_assignment": self.request.GET.get("assignment", "").strip(),
+            }
+        )
+        return context
+
+
+class DefectiveEquipmentReportView(EquipmentReportListView):
+    report_title = "Defective Equipment"
+    report_description = "All equipment currently marked as defective."
+
+    def get_queryset(self):
+        queryset = Equipment.objects.select_related(
+            "category",
+            "current_employee",
+            "current_employee__supervisor",
+        ).filter(status=Equipment.Status.DEFECTIVE).order_by("asset_code", "name")
+        return queryset
+
+
+class UnusedEquipmentReportView(EquipmentReportListView):
+    report_title = "Unused Equipment"
+    report_description = "All equipment currently marked as unused."
+
+    def get_queryset(self):
+        queryset = Equipment.objects.select_related(
+            "category",
+            "current_employee",
+            "current_employee__supervisor",
+        ).filter(status=Equipment.Status.UNUSED).order_by("asset_code", "name")
+        return queryset
+
+
+class AssignedEquipmentReportView(EquipmentReportListView):
+    report_title = "Assigned Equipment"
+    report_description = "All equipment currently assigned to employees."
+
+    def get_queryset(self):
+        queryset = Equipment.objects.select_related(
+            "category",
+            "current_employee",
+            "current_employee__supervisor",
+        ).filter(current_employee__isnull=False).order_by("asset_code", "name")
+        return queryset
+
+
+class UnassignedEquipmentReportView(EquipmentReportListView):
+    report_title = "Unassigned Equipment"
+    report_description = "All equipment currently available for assignment."
+
+    def get_queryset(self):
+        queryset = Equipment.objects.select_related(
+            "category",
+            "current_employee",
+            "current_employee__supervisor",
+        ).filter(current_employee__isnull=True).order_by("asset_code", "name")
+        return queryset
 
 
 class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):

@@ -962,3 +962,119 @@ class InventoryAuditLogTests(TestCase):
                 notes="Returned during audit",
             ).exists()
         )
+
+
+class EquipmentReportingTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="superreports",
+            email="superreports@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="adminreports",
+            email="adminreports@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+        self.supervisor_one = Supervisor.objects.create(full_name="Supervisor One", employee_code="SUP-801")
+        self.supervisor_two = Supervisor.objects.create(full_name="Supervisor Two", employee_code="SUP-802")
+        self.employee_one = Employee.objects.create(
+            full_name="Employee One",
+            employee_code="EMP-801",
+            supervisor=self.supervisor_one,
+        )
+        self.employee_two = Employee.objects.create(
+            full_name="Employee Two",
+            employee_code="EMP-802",
+            supervisor=self.supervisor_two,
+        )
+        self.laptop_category = EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+        self.monitor_category = EquipmentCategory.objects.create(name="Monitor", code="MONITOR")
+        self.defective_equipment = Equipment.objects.create(
+            asset_code="EQ-801",
+            name="Defective Laptop",
+            category=self.laptop_category,
+            brand="Dell",
+            status=Equipment.Status.DEFECTIVE,
+            current_employee=self.employee_one,
+        )
+        self.unused_equipment = Equipment.objects.create(
+            asset_code="EQ-802",
+            name="Unused Monitor",
+            category=self.monitor_category,
+            brand="HP",
+            status=Equipment.Status.UNUSED,
+        )
+        self.assigned_equipment = Equipment.objects.create(
+            asset_code="EQ-803",
+            name="Assigned Laptop",
+            category=self.laptop_category,
+            brand="Lenovo",
+            status=Equipment.Status.USED,
+            current_employee=self.employee_two,
+        )
+
+    def test_equipment_report_filters_by_status_category_brand_supervisor_and_assignment(self):
+        self.client.force_login(self.super_admin)
+
+        by_status = self.client.get(reverse("inventory:equipment-report-list"), {"status": Equipment.Status.DEFECTIVE})
+        by_category = self.client.get(reverse("inventory:equipment-report-list"), {"category": str(self.monitor_category.id)})
+        by_brand = self.client.get(reverse("inventory:equipment-report-list"), {"brand": "Lenovo"})
+        by_supervisor = self.client.get(reverse("inventory:equipment-report-list"), {"supervisor": str(self.supervisor_one.id)})
+        by_assignment = self.client.get(reverse("inventory:equipment-report-list"), {"assignment": "unassigned"})
+
+        self.assertContains(by_status, "Defective Laptop")
+        self.assertNotContains(by_status, "Unused Monitor")
+        self.assertContains(by_category, "Unused Monitor")
+        self.assertNotContains(by_category, "Defective Laptop")
+        self.assertContains(by_brand, "Assigned Laptop")
+        self.assertNotContains(by_brand, "Defective Laptop")
+        self.assertContains(by_supervisor, "Defective Laptop")
+        self.assertNotContains(by_supervisor, "Assigned Laptop")
+        self.assertContains(by_assignment, "Unused Monitor")
+        self.assertNotContains(by_assignment, "Assigned Laptop")
+
+    def test_defective_equipment_report_shows_only_defective_items(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:defective-equipment-report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Defective Equipment")
+        self.assertContains(response, "Defective Laptop")
+        self.assertNotContains(response, "Unused Monitor")
+
+    def test_unused_equipment_report_shows_only_unused_items(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:unused-equipment-report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unused Equipment")
+        self.assertContains(response, "Unused Monitor")
+        self.assertNotContains(response, "Assigned Laptop")
+
+    def test_assigned_equipment_report_shows_only_assigned_items(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:assigned-equipment-report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Assigned Equipment")
+        self.assertContains(response, "Defective Laptop")
+        self.assertContains(response, "Assigned Laptop")
+        self.assertNotContains(response, "Unused Monitor")
+
+    def test_unassigned_equipment_report_shows_only_unassigned_items(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:unassigned-equipment-report"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unassigned Equipment")
+        self.assertContains(response, "Unused Monitor")
+        self.assertNotContains(response, "Defective Laptop")
+
+    def test_admin_can_access_equipment_reports(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("inventory:equipment-report-list"))
+
+        self.assertEqual(response.status_code, 200)

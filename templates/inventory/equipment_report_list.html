@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }}{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>{{ report_title }}</h1>
+                <p>{{ report_description }}</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective</a>
+                <a href="{% url 'inventory:unused-equipment-report' %}" class="button secondary">Unused</a>
+                <a href="{% url 'inventory:assigned-equipment-report' %}" class="button secondary">Assigned</a>
+                <a href="{% url 'inventory:unassigned-equipment-report' %}" class="button secondary">Unassigned</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="get">
+                <div class="section-head">
+                    <h3>Filter Equipment</h3>
+                    <div class="actions">
+                        <a href="{% url 'inventory:equipment-report-list' %}" class="button ghost">Reset</a>
+                        <button type="submit" class="button">Apply Filters</button>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="field">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="">All statuses</option>
+                            {% for code, label in status_choices %}
+                            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="category">Category</label>
+                        <select id="category" name="category">
+                            <option value="">All categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="brand">Brand</label>
+                        <input type="text" id="brand" name="brand" value="{{ brand_query }}" placeholder="Brand name">
+                    </div>
+                    <div class="field">
+                        <label for="supervisor">Supervisor</label>
+                        <select id="supervisor" name="supervisor">
+                            <option value="">All supervisors</option>
+                            {% for supervisor in supervisors %}
+                            <option value="{{ supervisor.id }}" {% if selected_supervisor == supervisor.id|stringformat:"s" %}selected{% endif %}>{{ supervisor.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="assignment">Assignment</label>
+                        <select id="assignment" name="assignment">
+                            <option value="">All equipment</option>
+                            <option value="assigned" {% if selected_assignment == "assigned" %}selected{% endif %}>Assigned</option>
+                            <option value="unassigned" {% if selected_assignment == "unassigned" %}selected{% endif %}>Unassigned</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Equipment Results</h3>
+                <span class="badge">{{ equipment_list|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Equipment</th>
+                            <th>Status</th>
+                            <th>Category</th>
+                            <th>Brand</th>
+                            <th>Current Holder</th>
+                            <th>Supervisor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipment in equipment_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'inventory:equipment-detail' equipment.pk %}"><strong>{{ equipment.asset_code }}</strong></a>
+                                <div class="muted">{{ equipment.name }}</div>
+                            </td>
+                            <td>{{ equipment.get_status_display }}</td>
+                            <td>{% if equipment.category %}{{ equipment.category.name }}{% else %}-{% endif %}</td>
+                            <td>{{ equipment.brand|default:"-" }}</td>
+                            <td>{% if equipment.current_employee %}{{ equipment.current_employee.full_name }}{% else %}Unassigned{% endif %}</td>
+                            <td>
+                                {% if equipment.current_employee and equipment.current_employee.supervisor %}
+                                {{ equipment.current_employee.supervisor.full_name }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="muted">No equipment matched the selected filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

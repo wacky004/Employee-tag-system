@@ -1,7 +1,9 @@
 from django.urls import path
 
 from .views import (
+    AssignedEquipmentReportView,
     AuditLogListView,
+    DefectiveEquipmentReportView,
     EmployeeAssignSupervisorView,
     EmployeeCreateView,
     EmployeeDetailView,
@@ -11,12 +13,15 @@ from .views import (
     EquipmentCreateView,
     EquipmentDetailView,
     EquipmentHistoryView,
+    EquipmentReportListView,
     EquipmentUpdateView,
     InventoryDashboardView,
     InventorySummaryView,
     SupervisorCreateView,
     SupervisorListView,
     SupervisorUpdateView,
+    UnassignedEquipmentReportView,
+    UnusedEquipmentReportView,
     EmployeeUpdateView,
 )
 
@@ -25,6 +30,11 @@ app_name = "inventory"
 urlpatterns = [
     path("", InventoryDashboardView.as_view(), name="dashboard"),
     path("audit-logs/", AuditLogListView.as_view(), name="audit-log-list"),
+    path("equipment/reports/", EquipmentReportListView.as_view(), name="equipment-report-list"),
+    path("equipment/reports/defective/", DefectiveEquipmentReportView.as_view(), name="defective-equipment-report"),
+    path("equipment/reports/unused/", UnusedEquipmentReportView.as_view(), name="unused-equipment-report"),
+    path("equipment/reports/assigned/", AssignedEquipmentReportView.as_view(), name="assigned-equipment-report"),
+    path("equipment/reports/unassigned/", UnassignedEquipmentReportView.as_view(), name="unassigned-equipment-report"),
     path("summary/", InventorySummaryView.as_view(), name="summary"),
     path("supervisors/", SupervisorListView.as_view(), name="supervisor-list"),
     path("supervisors/create/", SupervisorCreateView.as_view(), name="supervisor-create"),
