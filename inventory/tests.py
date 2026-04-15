@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
 
@@ -343,6 +344,58 @@ class EquipmentAssignmentModuleTests(TestCase):
 
         self.assertContains(response, "Current Holder")
         self.assertContains(response, self.employee.full_name)
+
+    def test_equipment_detail_shows_assignment_history_section(self):
+        assignment = EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+            remarks="Issued for office use",
+        )
+        EquipmentHistoryLog.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assignment=assignment,
+            action=EquipmentHistoryLog.Action.ASSIGNED,
+            status_snapshot=Equipment.Status.USED,
+            remarks="Issued for office use",
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+
+        self.assertContains(response, "Assignment History")
+        self.assertContains(response, self.employee.full_name)
+        self.assertContains(response, "Issued for office use")
+
+    def test_equipment_history_page_shows_assignment_timeline(self):
+        assigned_at = timezone.make_aware(timezone.datetime(2026, 4, 15, 8, 30))
+        returned_at = timezone.make_aware(timezone.datetime(2026, 4, 16, 17, 0))
+        assignment = EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+            assigned_at=assigned_at,
+            returned_at=returned_at,
+            remarks="Returned after audit",
+        )
+        EquipmentHistoryLog.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assignment=assignment,
+            action=EquipmentHistoryLog.Action.ASSIGNED,
+            status_snapshot=Equipment.Status.USED,
+            remarks="Returned after audit",
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:equipment-history", kwargs={"pk": self.equipment.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Equipment History")
+        self.assertContains(response, self.employee.full_name)
+        self.assertContains(response, "Returned after audit")
+        self.assertContains(response, "USED")
 
     def test_admin_cannot_access_assignment_module(self):
         self.client.force_login(self.admin)

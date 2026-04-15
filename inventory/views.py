@@ -30,6 +30,26 @@ def _dashboard_url(user):
     return reverse("accounts:employee-dashboard")
 
 
+def _build_assignment_history(equipment):
+    assignment_history = []
+    assignments = equipment.assignments.select_related("employee", "assigned_by").order_by("-assigned_at", "-id")
+    for assignment in assignments:
+        assigned_log = assignment.history_logs.filter(
+            action=EquipmentHistoryLog.Action.ASSIGNED
+        ).order_by("-created_at", "-id").first()
+        assignment_history.append(
+            {
+                "employee": assignment.employee,
+                "assigned_at": assignment.assigned_at,
+                "returned_at": assignment.returned_at,
+                "status_snapshot": assigned_log.status_snapshot if assigned_log else "",
+                "notes": assignment.remarks,
+                "assigned_by": assignment.assigned_by,
+            }
+        )
+    return assignment_history
+
+
 class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles = (User.Role.SUPER_ADMIN, User.Role.ADMIN)
 
@@ -276,9 +296,7 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
         context["active_assignment"] = equipment.assignments.filter(returned_at__isnull=True).select_related(
             "employee", "assigned_by"
         ).first()
-        context["history_logs"] = equipment.history_logs.select_related(
-            "employee", "assignment", "assignment__assigned_by"
-        )
+        context["assignment_history"] = _build_assignment_history(equipment)
         context["return_form"] = kwargs.get("return_form") or EquipmentReturnForm(prefix="return")
         return context
 
@@ -314,6 +332,17 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
             status_snapshot=equipment.status,
             remarks=notes,
         )
+
+
+class EquipmentHistoryView(SuperAdminInventoryAccessMixin, DetailView):
+    model = Equipment
+    template_name = "inventory/equipment_history.html"
+    context_object_name = "equipment"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["assignment_history"] = _build_assignment_history(self.object)
+        return context
 
 
 class SupervisorListView(SuperAdminInventoryAccessMixin, ListView):

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment History{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Equipment History</h1>
+                <p>Full assignment history for this equipment item.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:equipment-detail' equipment.pk %}" class="button secondary">Back to Equipment Detail</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>{{ equipment.name }}</h3>
+                <span class="badge">{{ equipment.asset_code }}</span>
+            </div>
+            <p><strong>Current Holder:</strong> {% if equipment.current_employee %}{{ equipment.current_employee.full_name }}{% else %}No active holder{% endif %}</p>
+            <p><strong>Status:</strong> {{ equipment.get_status_display }}</p>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Assignment History</h3>
+                <span class="badge">{{ assignment_history|length }}</span>
+            </div>
+            {% if assignment_history %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Assigned Date</th>
+                            <th>Returned Date</th>
+                            <th>Status During Assignment</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in assignment_history %}
+                        <tr>
+                            <td>{{ entry.employee.full_name }}</td>
+                            <td>{{ entry.assigned_at|date:"M j, Y h:i A" }}</td>
+                            <td>{% if entry.returned_at %}{{ entry.returned_at|date:"M j, Y h:i A" }}{% else %}Active{% endif %}</td>
+                            <td>{% if entry.status_snapshot %}{{ entry.status_snapshot }}{% else %}-{% endif %}</td>
+                            <td>{{ entry.notes|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">No assignment history yet for this equipment.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@ from .views import (
     EquipmentAssignmentCreateView,
     EquipmentCreateView,
     EquipmentDetailView,
+    EquipmentHistoryView,
     InventoryDashboardView,
     SupervisorCreateView,
     SupervisorListView,
@@ -23,5 +24,6 @@ urlpatterns = [
     path("employees/assign-supervisor/", EmployeeAssignSupervisorView.as_view(), name="employee-assign-supervisor"),
     path("equipment/assign/", EquipmentAssignmentCreateView.as_view(), name="equipment-assign"),
     path("equipment/create/", EquipmentCreateView.as_view(), name="equipment-create"),
+    path("equipment/<int:pk>/history/", EquipmentHistoryView.as_view(), name="equipment-history"),
     path("equipment/<int:pk>/", EquipmentDetailView.as_view(), name="equipment-detail"),
 ]
