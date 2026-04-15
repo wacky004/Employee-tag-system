@@ -3,7 +3,15 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
+from .models import (
+    Employee,
+    Equipment,
+    EquipmentAssignment,
+    EquipmentCategory,
+    EquipmentHistoryLog,
+    InventoryAuditLog,
+    Supervisor,
+)
 
 User = get_user_model()
 
@@ -782,5 +790,175 @@ class EmployeeSearchModuleTests(TestCase):
                 equipment=self.equipment,
                 action=EquipmentHistoryLog.Action.RETURNED,
                 remarks="Returned from employee detail",
+            ).exists()
+        )
+
+
+class InventoryAuditLogTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="superaudit",
+            email="superaudit@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="adminaudit",
+            email="adminaudit@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+
+    def test_super_admin_can_view_audit_log_page(self):
+        InventoryAuditLog.objects.create(
+            action=InventoryAuditLog.Action.SUPERVISOR_CREATED,
+            actor=self.super_admin,
+            target_type="supervisor",
+            target_id=1,
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:audit-log-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Audit Log")
+        self.assertContains(response, "Supervisor Created")
+
+    def test_admin_cannot_access_audit_log_page(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("inventory:audit-log-list"))
+
+        self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+    def test_creating_supervisor_employee_and_equipment_writes_audit_logs(self):
+        self.client.force_login(self.super_admin)
+
+        supervisor_response = self.client.post(
+            reverse("inventory:supervisor-create"),
+            {
+                "full_name": "Audit Supervisor",
+                "employee_code": "SUP-900",
+                "department": "Operations",
+                "job_title": "Supervisor",
+                "is_active": "on",
+            },
+        )
+        supervisor = Supervisor.objects.get(employee_code="SUP-900")
+
+        employee_response = self.client.post(
+            reverse("inventory:employee-create"),
+            {
+                "full_name": "Audit Employee",
+                "employee_code": "EMP-900",
+                "department": "Operations",
+                "team_name": "Warehouse",
+                "job_title": "Clerk",
+                "supervisor": supervisor.id,
+                "is_active": "on",
+            },
+        )
+
+        equipment_response = self.client.post(
+            reverse("inventory:equipment-create"),
+            {
+                "name": "Audit Laptop",
+                "category": "",
+                "brand": "Dell",
+                "model": "Latitude",
+                "serial_number": "AUDIT-001",
+                "asset_code": "EQ-AUDIT-001",
+                "status": Equipment.Status.BRANDNEW,
+                "notes": "Created for audit testing",
+            },
+        )
+        equipment = Equipment.objects.get(asset_code="EQ-AUDIT-001")
+
+        self.assertRedirects(supervisor_response, reverse("inventory:supervisor-list"))
+        self.assertRedirects(employee_response, reverse("inventory:employee-list"))
+        self.assertRedirects(equipment_response, reverse("inventory:equipment-create"))
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.SUPERVISOR_CREATED,
+                target_type="supervisor",
+                target_id=supervisor.id,
+            ).exists()
+        )
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.EMPLOYEE_CREATED,
+                target_type="employee",
+                target_id=Employee.objects.get(employee_code="EMP-900").id,
+            ).exists()
+        )
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.EQUIPMENT_CREATED,
+                target_type="equipment",
+                target_id=equipment.id,
+            ).exists()
+        )
+
+    def test_edit_assign_and_return_equipment_write_audit_logs(self):
+        employee = Employee.objects.create(full_name="Audit Employee", employee_code="EMP-901")
+        equipment = Equipment.objects.create(
+            asset_code="EQ-AUDIT-002",
+            name="Audit Monitor",
+            status=Equipment.Status.UNUSED,
+        )
+        self.client.force_login(self.super_admin)
+
+        update_response = self.client.post(
+            reverse("inventory:equipment-update", kwargs={"pk": equipment.pk}),
+            {
+                "name": "Audit Monitor Updated",
+                "category": "",
+                "brand": "HP",
+                "model": "M24",
+                "serial_number": "AUDIT-002",
+                "asset_code": "EQ-AUDIT-002",
+                "status": Equipment.Status.TO_BE_CHECKED,
+                "notes": "Updated during audit",
+            },
+        )
+        assign_response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": equipment.id,
+                "employee": employee.id,
+                "assigned_at": "2026-04-15T09:00",
+                "notes": "Assigned during audit",
+            },
+        )
+        return_response = self.client.post(
+            reverse("inventory:equipment-detail", kwargs={"pk": equipment.pk}),
+            {
+                "return-returned_at": "2026-04-16T09:00",
+                "return-notes": "Returned during audit",
+            },
+        )
+
+        self.assertRedirects(update_response, reverse("inventory:equipment-detail", kwargs={"pk": equipment.pk}))
+        self.assertRedirects(assign_response, reverse("inventory:equipment-detail", kwargs={"pk": equipment.pk}))
+        self.assertRedirects(return_response, reverse("inventory:equipment-detail", kwargs={"pk": equipment.pk}))
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.EQUIPMENT_UPDATED,
+                target_type="equipment",
+                target_id=equipment.id,
+            ).exists()
+        )
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.EQUIPMENT_ASSIGNED,
+                target_type="equipment",
+                target_id=equipment.id,
+            ).exists()
+        )
+        self.assertTrue(
+            InventoryAuditLog.objects.filter(
+                action=InventoryAuditLog.Action.EQUIPMENT_RETURNED,
+                target_type="equipment",
+                target_id=equipment.id,
+                notes="Returned during audit",
             ).exists()
         )

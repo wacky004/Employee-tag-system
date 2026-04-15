@@ -18,7 +18,15 @@ from .forms import (
     EquipmentReturnForm,
     SupervisorForm,
 )
-from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
+from .models import (
+    Employee,
+    Equipment,
+    EquipmentAssignment,
+    EquipmentCategory,
+    EquipmentHistoryLog,
+    InventoryAuditLog,
+    Supervisor,
+)
 
 User = get_user_model()
 
@@ -51,11 +59,21 @@ def _build_assignment_history(equipment):
     return assignment_history
 
 
+def _create_audit_log(action, actor, target, notes=""):
+    InventoryAuditLog.objects.create(
+        action=action,
+        actor=actor,
+        target_type=target._meta.model_name,
+        target_id=target.pk,
+        notes=notes,
+    )
+
+
 def _get_active_assignment(equipment):
     return equipment.assignments.filter(returned_at__isnull=True).select_related("employee", "assigned_by").first()
 
 
-def _return_equipment_assignment(equipment, returned_at, notes):
+def _return_equipment_assignment(equipment, returned_at, notes, actor=None):
     assignment = _get_active_assignment(equipment)
     if not assignment:
         return None
@@ -74,6 +92,12 @@ def _return_equipment_assignment(equipment, returned_at, notes):
         action=EquipmentHistoryLog.Action.RETURNED,
         status_snapshot=equipment.status,
         remarks=notes,
+    )
+    _create_audit_log(
+        InventoryAuditLog.Action.EQUIPMENT_RETURNED,
+        actor,
+        equipment,
+        notes=notes or f"Returned from employee {assignment.employee.full_name}.",
     )
     return assignment
 
@@ -114,7 +138,15 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             context_key, form_class, success_message = form_map[action]
             form = form_class(request.POST, prefix=context_key.split("_")[0])
             if form.is_valid():
-                form.save()
+                instance = form.save()
+                audit_action_map = {
+                    "create_supervisor": InventoryAuditLog.Action.SUPERVISOR_CREATED,
+                    "create_employee": InventoryAuditLog.Action.EMPLOYEE_CREATED,
+                    "create_equipment": InventoryAuditLog.Action.EQUIPMENT_CREATED,
+                }
+                audit_action = audit_action_map.get(action)
+                if audit_action:
+                    _create_audit_log(audit_action, request.user, instance)
                 messages.success(request, success_message)
                 return redirect("inventory:dashboard")
             return self.render_to_response(self.get_context_data(**{context_key: form}))
@@ -225,6 +257,12 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 status_snapshot=equipment.status,
                 remarks="Automatically closed before reassignment.",
             )
+            _create_audit_log(
+                InventoryAuditLog.Action.EQUIPMENT_RETURNED,
+                assigned_by,
+                equipment,
+                notes="Automatically closed before reassignment.",
+            )
 
         assignment = EquipmentAssignment.objects.create(
             equipment=equipment,
@@ -249,6 +287,12 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             action=EquipmentHistoryLog.Action.ASSIGNED,
             status_snapshot=equipment.status,
             remarks=remarks,
+        )
+        _create_audit_log(
+            InventoryAuditLog.Action.EQUIPMENT_ASSIGNED,
+            assigned_by,
+            equipment,
+            notes=remarks or f"Assigned to {employee.full_name}.",
         )
 
         if status:
@@ -289,14 +333,26 @@ class InventorySummaryView(InventoryAccessMixin, TemplateView):
         return context
 
 
+class AuditLogListView(SuperAdminInventoryAccessMixin, ListView):
+    model = InventoryAuditLog
+    template_name = "inventory/audit_log_list.html"
+    context_object_name = "audit_logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        return InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+
+
 class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
     model = Equipment
     form_class = EquipmentForm
     template_name = "inventory/equipment_create.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _create_audit_log(InventoryAuditLog.Action.EQUIPMENT_CREATED, self.request.user, self.object)
         messages.success(self.request, "Equipment record created successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse("inventory:equipment-create")
@@ -337,6 +393,12 @@ class EquipmentAssignmentCreateView(SuperAdminInventoryAccessMixin, FormView):
             status_snapshot=equipment.status,
             remarks=notes,
         )
+        _create_audit_log(
+            InventoryAuditLog.Action.EQUIPMENT_ASSIGNED,
+            assigned_by,
+            equipment,
+            notes=notes or f"Assigned to {employee.full_name}.",
+        )
         return assignment
 
 
@@ -361,6 +423,7 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
                 equipment=self.object,
                 returned_at=form.cleaned_data["returned_at"],
                 notes=form.cleaned_data["notes"],
+                actor=request.user,
             )
             if not assignment:
                 messages.error(request, "This equipment has already been returned.")
@@ -396,8 +459,10 @@ class SupervisorCreateView(SuperAdminInventoryAccessMixin, CreateView):
     template_name = "inventory/supervisor_create.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _create_audit_log(InventoryAuditLog.Action.SUPERVISOR_CREATED, self.request.user, self.object)
         messages.success(self.request, "Supervisor created successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse("inventory:supervisor-list")
@@ -507,6 +572,7 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
                 equipment=equipment,
                 returned_at=form.cleaned_data["returned_at"],
                 notes=form.cleaned_data["notes"],
+                actor=request.user,
             )
             if not assignment:
                 messages.error(request, "This equipment has already been returned.")
@@ -534,8 +600,10 @@ class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
     template_name = "inventory/employee_create.html"
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        _create_audit_log(InventoryAuditLog.Action.EMPLOYEE_CREATED, self.request.user, self.object)
         messages.success(self.request, "Employee created successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse("inventory:employee-list")
@@ -573,8 +641,15 @@ class EquipmentUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
     template_name = "inventory/equipment_update.html"
 
     def form_valid(self, form):
+        original = self.get_object()
+        old_status = original.status
+        response = super().form_valid(form)
+        notes = "Equipment details updated."
+        if old_status != self.object.status:
+            notes = f"Status updated from {old_status} to {self.object.status}."
+        _create_audit_log(InventoryAuditLog.Action.EQUIPMENT_UPDATED, self.request.user, self.object, notes=notes)
         messages.success(self.request, "Equipment updated successfully.")
-        return super().form_valid(form)
+        return response
 
     def get_success_url(self):
         return reverse("inventory:equipment-detail", kwargs={"pk": self.object.pk})

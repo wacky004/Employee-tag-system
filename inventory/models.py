@@ -172,3 +172,33 @@ class EquipmentHistoryLog(models.Model):
 
     def __str__(self):
         return f"{self.equipment} - {self.action}"
+
+
+class InventoryAuditLog(models.Model):
+    class Action(models.TextChoices):
+        EQUIPMENT_CREATED = "EQUIPMENT_CREATED", "Equipment Created"
+        EQUIPMENT_UPDATED = "EQUIPMENT_UPDATED", "Equipment Updated"
+        EQUIPMENT_ASSIGNED = "EQUIPMENT_ASSIGNED", "Equipment Assigned"
+        EQUIPMENT_RETURNED = "EQUIPMENT_RETURNED", "Equipment Returned"
+        EMPLOYEE_CREATED = "EMPLOYEE_CREATED", "Employee Created"
+        SUPERVISOR_CREATED = "SUPERVISOR_CREATED", "Supervisor Created"
+
+    action = models.CharField(max_length=30, choices=Action.choices)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_audit_logs",
+    )
+    target_type = models.CharField(max_length=50)
+    target_id = models.PositiveIntegerField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "inventory_audit_logs"
+        ordering = ["-timestamp", "-id"]
+
+    def __str__(self):
+        return f"{self.get_action_display()} - {self.target_type}#{self.target_id}"

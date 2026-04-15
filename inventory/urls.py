@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AuditLogListView,
     EmployeeAssignSupervisorView,
     EmployeeCreateView,
     EmployeeDetailView,
@@ -23,6 +24,7 @@ app_name = "inventory"
 
 urlpatterns = [
     path("", InventoryDashboardView.as_view(), name="dashboard"),
+    path("audit-logs/", AuditLogListView.as_view(), name="audit-log-list"),
     path("summary/", InventorySummaryView.as_view(), name="summary"),
     path("supervisors/", SupervisorListView.as_view(), name="supervisor-list"),
     path("supervisors/create/", SupervisorCreateView.as_view(), name="supervisor-create"),
