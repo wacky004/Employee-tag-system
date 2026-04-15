@@ -5,7 +5,7 @@ from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
-from django.views.generic import TemplateView
+from django.views.generic import CreateView, TemplateView
 
 from .forms import EmployeeForm, EquipmentAssignmentForm, EquipmentCategoryForm, EquipmentForm, SupervisorForm
 from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
@@ -31,6 +31,10 @@ class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
         if self.request.user.is_authenticated:
             return redirect(_dashboard_url(self.request.user))
         return super().handle_no_permission()
+
+
+class SuperAdminInventoryAccessMixin(InventoryAccessMixin):
+    allowed_roles = (User.Role.SUPER_ADMIN,)
 
 
 class InventoryDashboardView(InventoryAccessMixin, TemplateView):
@@ -199,3 +203,16 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 status_snapshot=equipment.status,
                 remarks="Equipment status updated during assignment.",
             )
+
+
+class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
+    model = Equipment
+    form_class = EquipmentForm
+    template_name = "inventory/equipment_create.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Equipment record created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:equipment-create")

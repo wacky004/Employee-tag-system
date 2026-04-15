@@ -57,6 +57,15 @@ class EquipmentForm(forms.ModelForm):
             "status",
             "notes",
         ]
+        labels = {
+            "name": "Equipment name",
+            "category": "Equipment category",
+            "asset_code": "Asset code / company property code",
+            "serial_number": "Serial number",
+        }
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
 
 
 class EquipmentAssignmentForm(forms.Form):

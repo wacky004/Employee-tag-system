@@ -133,3 +133,65 @@ class InventoryDashboardTests(TestCase):
         self.assertEqual(len(assignments), 2)
         self.assertIsNotNone(assignments[1].returned_at)
         self.assertGreaterEqual(len(history_logs), 3)
+
+
+class EquipmentCreateModuleTests(TestCase):
+    def test_super_admin_can_open_equipment_create_page(self):
+        user = User.objects.create_user(
+            username="superequipment",
+            email="superequipment@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("inventory:equipment-create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create Equipment")
+
+    def test_admin_cannot_access_equipment_create_page(self):
+        user = User.objects.create_user(
+            username="adminequipment",
+            email="adminequipment@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("inventory:equipment-create"))
+
+        self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+    def test_super_admin_can_create_equipment_record(self):
+        user = User.objects.create_user(
+            username="supercreateequipment",
+            email="supercreateequipment@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        category = EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+
+        self.client.force_login(user)
+        response = self.client.post(
+            reverse("inventory:equipment-create"),
+            {
+                "name": "Dell Latitude 7440",
+                "category": category.id,
+                "brand": "Dell",
+                "model": "Latitude 7440",
+                "serial_number": "DL-7440-001",
+                "asset_code": "COMP-0001",
+                "status": Equipment.Status.BRANDNEW,
+                "notes": "Newly received office laptop",
+            },
+        )
+
+        self.assertRedirects(response, reverse("inventory:equipment-create"))
+        self.assertTrue(
+            Equipment.objects.filter(
+                asset_code="COMP-0001",
+                name="Dell Latitude 7440",
+                status=Equipment.Status.BRANDNEW,
+            ).exists()
+        )

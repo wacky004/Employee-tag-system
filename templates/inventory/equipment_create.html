@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Create Equipment{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Create Equipment</h1>
+                <p>Super admins can register new equipment records for the inventory system.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Back to Inventory</a>
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Equipment creation module</h2>
+            <p>Use this page to create equipment records with category, brand, model, serial number, property code, status, and notes.</p>
+        </section>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Equipment Details</h3>
+                    <span class="badge good">Super Admin Only</span>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                        <div class="muted">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% if field.errors %}
+                        <div class="muted">{{ field.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="actions">
+                        <button type="submit" class="button">Create Equipment</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Required Fields</h3>
+                </div>
+                <div class="list">
+                    <div class="list-item">
+                        <div>
+                            <strong>Core identity</strong>
+                            <p>Equipment name, category, serial number, and asset code keep every item distinct and traceable.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Status</strong>
+                            <p>Choose from Brand New, Used, Unused, Defective, or To Be Checked.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Notes</strong>
+                            <p>Use notes for vendor details, delivery condition, warranty reminders, or internal remarks.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
