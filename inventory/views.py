@@ -2,17 +2,19 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count, Q
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
-from django.views.generic import CreateView, FormView, ListView, TemplateView
+from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView
 
 from .forms import (
+    EquipmentAssignmentCreateForm,
     EmployeeAssignSupervisorForm,
     EmployeeForm,
     EquipmentAssignmentForm,
     EquipmentCategoryForm,
     EquipmentForm,
+    EquipmentReturnForm,
     SupervisorForm,
 )
 from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
@@ -223,6 +225,95 @@ class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
 
     def get_success_url(self):
         return reverse("inventory:equipment-create")
+
+
+class EquipmentAssignmentCreateView(SuperAdminInventoryAccessMixin, FormView):
+    form_class = EquipmentAssignmentCreateForm
+    template_name = "inventory/equipment_assignment_create.html"
+
+    def form_valid(self, form):
+        assignment = self._assign_equipment(
+            equipment=form.cleaned_data["equipment"],
+            employee=form.cleaned_data["employee"],
+            assigned_by=self.request.user,
+            assigned_at=form.cleaned_data["assigned_at"],
+            notes=form.cleaned_data["notes"],
+        )
+        messages.success(self.request, "Equipment assigned successfully.")
+        return redirect("inventory:equipment-detail", pk=assignment.equipment_id)
+
+    def _assign_equipment(self, equipment, employee, assigned_by, assigned_at, notes):
+        assignment = EquipmentAssignment.objects.create(
+            equipment=equipment,
+            employee=employee,
+            assigned_by=assigned_by,
+            assigned_at=assigned_at,
+            remarks=notes,
+        )
+        equipment.current_employee = employee
+        equipment.last_assigned_at = assigned_at
+        equipment.save(update_fields=["current_employee", "last_assigned_at"])
+
+        EquipmentHistoryLog.objects.create(
+            equipment=equipment,
+            employee=employee,
+            assignment=assignment,
+            action=EquipmentHistoryLog.Action.ASSIGNED,
+            status_snapshot=equipment.status,
+            remarks=notes,
+        )
+        return assignment
+
+
+class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
+    model = Equipment
+    template_name = "inventory/equipment_detail.html"
+    context_object_name = "equipment"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        equipment = self.object
+        context["active_assignment"] = equipment.assignments.filter(returned_at__isnull=True).select_related(
+            "employee", "assigned_by"
+        ).first()
+        context["history_logs"] = equipment.history_logs.select_related(
+            "employee", "assignment", "assignment__assigned_by"
+        )
+        context["return_form"] = kwargs.get("return_form") or EquipmentReturnForm(prefix="return")
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = EquipmentReturnForm(request.POST, prefix="return")
+        if form.is_valid():
+            self._return_equipment(
+                equipment=self.object,
+                returned_at=form.cleaned_data["returned_at"],
+                notes=form.cleaned_data["notes"],
+            )
+            messages.success(request, "Equipment returned successfully.")
+            return redirect("inventory:equipment-detail", pk=self.object.pk)
+        return self.render_to_response(self.get_context_data(return_form=form))
+
+    def _return_equipment(self, equipment, returned_at, notes):
+        assignment = get_object_or_404(
+            EquipmentAssignment.objects.select_related("employee"),
+            equipment=equipment,
+            returned_at__isnull=True,
+        )
+        assignment.returned_at = returned_at
+        assignment.remarks = notes or assignment.remarks
+        assignment.save(update_fields=["returned_at", "remarks"])
+        equipment.current_employee = None
+        equipment.save(update_fields=["current_employee"])
+        EquipmentHistoryLog.objects.create(
+            equipment=equipment,
+            employee=assignment.employee,
+            assignment=assignment,
+            action=EquipmentHistoryLog.Action.RETURNED,
+            status_snapshot=equipment.status,
+            remarks=notes,
+        )
 
 
 class SupervisorListView(SuperAdminInventoryAccessMixin, ListView):

@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from .models import Employee, Equipment, EquipmentCategory, Supervisor
 
@@ -99,3 +100,39 @@ class EquipmentAssignmentForm(forms.Form):
         if equipment and employee and equipment.current_employee_id == employee.id:
             raise forms.ValidationError("This equipment is already assigned to the selected employee.")
         return cleaned_data
+
+
+class EquipmentAssignmentCreateForm(forms.Form):
+    equipment = forms.ModelChoiceField(queryset=Equipment.objects.none())
+    employee = forms.ModelChoiceField(queryset=Employee.objects.none())
+    assigned_at = forms.DateTimeField(
+        initial=timezone.now,
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+    )
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
+    allow_defective_assignment = forms.BooleanField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["equipment"].queryset = Equipment.objects.select_related("current_employee").order_by("asset_code", "name")
+        self.fields["employee"].queryset = Employee.objects.filter(is_active=True).order_by("full_name", "employee_code")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        equipment = cleaned_data.get("equipment")
+        allow_defective = cleaned_data.get("allow_defective_assignment")
+        if not equipment:
+            return cleaned_data
+        if equipment.current_employee_id:
+            raise forms.ValidationError("This equipment is already actively assigned to another employee.")
+        if equipment.status == Equipment.Status.DEFECTIVE and not allow_defective:
+            raise forms.ValidationError("Defective equipment cannot be assigned unless explicitly allowed.")
+        return cleaned_data
+
+
+class EquipmentReturnForm(forms.Form):
+    returned_at = forms.DateTimeField(
+        initial=timezone.now,
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+    )
+    notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))

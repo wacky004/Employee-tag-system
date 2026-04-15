@@ -197,6 +197,160 @@ class EquipmentCreateModuleTests(TestCase):
         )
 
 
+class EquipmentAssignmentModuleTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="superassignmodule",
+            email="superassignmodule@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="adminassignmodule",
+            email="adminassignmodule@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+        self.employee = Employee.objects.create(full_name="Employee Assign", employee_code="EMP-900")
+        self.equipment = Equipment.objects.create(
+            asset_code="EQ-900",
+            name="Monitor",
+            status=Equipment.Status.UNUSED,
+        )
+
+    def test_super_admin_can_assign_equipment(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": self.equipment.id,
+                "employee": self.employee.id,
+                "assigned_at": "2026-04-15T09:00",
+                "notes": "Assigned for workstation use",
+            },
+        )
+        self.equipment.refresh_from_db()
+        assignment = EquipmentAssignment.objects.get(equipment=self.equipment)
+        history = EquipmentHistoryLog.objects.filter(equipment=self.equipment, action=EquipmentHistoryLog.Action.ASSIGNED)
+
+        self.assertRedirects(response, reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+        self.assertEqual(self.equipment.current_employee, self.employee)
+        self.assertEqual(assignment.employee, self.employee)
+        self.assertEqual(assignment.remarks, "Assigned for workstation use")
+        self.assertTrue(history.exists())
+
+    def test_cannot_assign_equipment_when_already_active(self):
+        other_employee = Employee.objects.create(full_name="Other Employee", employee_code="EMP-901")
+        EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=other_employee,
+            assigned_by=self.super_admin,
+        )
+        self.equipment.current_employee = other_employee
+        self.equipment.save(update_fields=["current_employee"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": self.equipment.id,
+                "employee": self.employee.id,
+                "assigned_at": "2026-04-15T10:00",
+                "notes": "Second assignment attempt",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "already actively assigned")
+
+    def test_cannot_assign_defective_equipment_without_override(self):
+        self.equipment.status = Equipment.Status.DEFECTIVE
+        self.equipment.save(update_fields=["status"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": self.equipment.id,
+                "employee": self.employee.id,
+                "assigned_at": "2026-04-15T10:00",
+                "notes": "Attempted defective assignment",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Defective equipment cannot be assigned")
+
+    def test_can_assign_defective_equipment_with_override(self):
+        self.equipment.status = Equipment.Status.DEFECTIVE
+        self.equipment.save(update_fields=["status"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-assign"),
+            {
+                "equipment": self.equipment.id,
+                "employee": self.employee.id,
+                "assigned_at": "2026-04-15T11:00",
+                "notes": "Allowed defective assignment",
+                "allow_defective_assignment": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+
+    def test_super_admin_can_return_equipment_and_create_history_log(self):
+        assignment = EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+        )
+        self.equipment.current_employee = self.employee
+        self.equipment.save(update_fields=["current_employee"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}),
+            {
+                "return-returned_at": "2026-04-16T09:30",
+                "return-notes": "Returned after project completion",
+            },
+        )
+        assignment.refresh_from_db()
+        self.equipment.refresh_from_db()
+
+        self.assertRedirects(response, reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+        self.assertIsNone(self.equipment.current_employee)
+        self.assertIsNotNone(assignment.returned_at)
+        self.assertTrue(
+            EquipmentHistoryLog.objects.filter(
+                equipment=self.equipment,
+                action=EquipmentHistoryLog.Action.RETURNED,
+            ).exists()
+        )
+
+    def test_equipment_detail_shows_current_holder(self):
+        EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+        )
+        self.equipment.current_employee = self.employee
+        self.equipment.save(update_fields=["current_employee"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:equipment-detail", kwargs={"pk": self.equipment.pk}))
+
+        self.assertContains(response, "Current Holder")
+        self.assertContains(response, self.employee.full_name)
+
+    def test_admin_cannot_access_assignment_module(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("inventory:equipment-assign"))
+
+        self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+
 class SupervisorEmployeeManagementTests(TestCase):
     def setUp(self):
         self.super_admin = User.objects.create_user(

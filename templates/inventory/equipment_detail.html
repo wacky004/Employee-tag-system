@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Detail{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Equipment Detail</h1>
+                <p>Review the current holder, assignment history, and return equipment when needed.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:equipment-assign' %}" class="button">Assign Equipment</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>{{ equipment.name }}</h3>
+                    <span class="badge">{{ equipment.get_status_display }}</span>
+                </div>
+                <p><strong>Asset Code:</strong> {{ equipment.asset_code }}</p>
+                <p><strong>Category:</strong> {% if equipment.category %}{{ equipment.category.name }}{% else %}-{% endif %}</p>
+                <p><strong>Brand:</strong> {{ equipment.brand|default:"-" }}</p>
+                <p><strong>Model:</strong> {{ equipment.model|default:"-" }}</p>
+                <p><strong>Serial Number:</strong> {{ equipment.serial_number|default:"-" }}</p>
+                <p><strong>Notes:</strong> {{ equipment.notes|default:"-" }}</p>
+                <p><strong>Current Holder:</strong> {% if equipment.current_employee %}{{ equipment.current_employee.full_name }}{% else %}No active holder{% endif %}</p>
+                {% if active_assignment %}
+                <p><strong>Assigned Date:</strong> {{ active_assignment.assigned_at|date:"M j, Y h:i A" }}</p>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Return Equipment</h3>
+                </div>
+                {% if active_assignment %}
+                <form method="post">
+                    {% csrf_token %}
+                    {% for field in return_form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="actions">
+                        <button type="submit" class="button">Return Equipment</button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="empty-state">This equipment is not currently assigned.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>History Log</h3>
+                <span class="badge">{{ history_logs|length }}</span>
+            </div>
+            {% if history_logs %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Employee</th>
+                            <th>Status Snapshot</th>
+                            <th>Date</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in history_logs %}
+                        <tr>
+                            <td>{{ log.get_action_display }}</td>
+                            <td>{% if log.employee %}{{ log.employee.full_name }}{% else %}-{% endif %}</td>
+                            <td>{% if log.status_snapshot %}{{ log.get_status_snapshot_display }}{% else %}-{% endif %}</td>
+                            <td>{{ log.created_at|date:"M j, Y h:i A" }}</td>
+                            <td>{{ log.remarks|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">No history logs yet for this equipment.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

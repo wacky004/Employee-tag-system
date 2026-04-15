@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Equipment{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Assign Equipment</h1>
+                <p>Assign one equipment item to one employee at a time.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+                <a href="{% url 'inventory:equipment-create' %}" class="button secondary">Create Equipment</a>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Assignment Form</h3>
+                    <span class="badge good">Super Admin Only</span>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if form.non_field_errors %}
+                    <div class="muted">{{ form.non_field_errors|join:", " }}</div>
+                    {% endif %}
+                    <div class="actions">
+                        <button type="submit" class="button">Assign Equipment</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Assignment Rules</h3>
+                </div>
+                <div class="list">
+                    <div class="list-item">
+                        <div>
+                            <strong>Single active holder</strong>
+                            <p>An equipment item must be returned first before it can be assigned to another employee.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Defective equipment</strong>
+                            <p>Defective equipment is blocked unless you explicitly allow the assignment.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>History logging</strong>
+                            <p>Each assignment and return automatically creates an equipment history log entry.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
