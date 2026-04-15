@@ -14,8 +14,6 @@
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
                 <a href="{% url 'tagging:dashboard' %}" class="button secondary">Tagging</a>
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
-                <a href="{% url 'core:settings' %}" class="button secondary">Settings</a>
-                <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}
@@ -48,26 +46,9 @@
                 </div>
             </div>
             <div class="card">
-                <h3>System Settings</h3>
-                <div class="stat">Global rules</div>
-                <p>Lunch, break, bio, late, timezone, work setup, and correction permissions live in the new settings center.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'core:settings' %}" class="button">Open Settings</a>
-                </div>
-            </div>
-            <div class="card">
                 <h3>User Management</h3>
                 <div class="stat">Roles</div>
                 <p>Manage employees, admins, future TL assignments, and log editing permissions.</p>
-            </div>
-            <div class="card">
-                <h3>Reports</h3>
-                <div class="stat">Exports</div>
-                <p>Company-wide attendance summaries and Excel export shortcuts can be surfaced here.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'reports:center' %}" class="button">Open Reports</a>
-                    <a href="/admin/" class="button secondary">Django Admin</a>
-                </div>
             </div>
         </div>
     </div>
