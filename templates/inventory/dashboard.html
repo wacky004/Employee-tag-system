@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Inventory Management</h1>
-                <p>Manage equipment, assignments, supervisors, and employee inventory history from one module.</p>
+                <p>Manage supervisors, non-login employees, equipment categories, asset assignments, and history logs in one module.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
@@ -26,8 +26,8 @@
         </div>
 
         <section class="hero">
-            <h2>Equipment ownership and history in one place</h2>
-            <p>Super admins can add non-login inventory employees, define supervisors, create equipment, assign assets, and keep a full equipment history log for every holder.</p>
+            <h2>Equipment ownership and assignment history</h2>
+            <p>Super admins can add supervisors, employees without system login accounts, equipment categories, equipment items, and assignments while keeping a full audit-friendly history per asset.</p>
         </section>
 
         <div class="mini-grid">
@@ -70,8 +70,8 @@
                     </div>
                     <form method="post">
                         {% csrf_token %}
-                        <input type="hidden" name="inventory_action" value="create_user">
-                        {% for field in user_form %}
+                        <input type="hidden" name="inventory_action" value="create_employee">
+                        {% for field in employee_form %}
                         <div class="field">
                             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                             {{ field }}
@@ -86,6 +86,27 @@
             </div>
 
             <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Create Category</h3>
+                        <span class="badge">Equipment types</span>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="create_category">
+                        {% for field in category_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="actions">
+                            <button type="submit" class="button">Add Category</button>
+                        </div>
+                    </form>
+                </div>
+
                 <div class="card">
                     <div class="section-head">
                         <h3>Create Equipment</h3>
@@ -146,7 +167,7 @@
                 <div class="filters">
                     <div class="field">
                         <label for="q">Employee Search</label>
-                        <input type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee code, team, or department">
+                        <input type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee code, team, department, or supervisor">
                     </div>
                 </div>
             </form>
@@ -167,7 +188,7 @@
                                 <strong>{{ supervisor.full_name }}</strong>
                                 <p>{{ supervisor.employee_code }}{% if supervisor.job_title %} • {{ supervisor.job_title }}{% endif %}</p>
                             </div>
-                            <span class="badge good">{{ supervisor.member_count }} user{{ supervisor.member_count|pluralize }}</span>
+                            <span class="badge good">{{ supervisor.member_count }} employee{{ supervisor.member_count|pluralize }}</span>
                         </div>
                         {% endfor %}
                     </div>
@@ -179,7 +200,7 @@
                 <div class="card">
                     <div class="section-head">
                         <h3>Employees</h3>
-                        <span class="muted">{{ inventory_users|length }} result{{ inventory_users|length|pluralize }}</span>
+                        <span class="muted">{{ employees|length }} result{{ employees|length|pluralize }}</span>
                     </div>
                     <div class="table-wrap">
                         <table>
@@ -192,15 +213,15 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for person in inventory_users %}
+                                {% for employee in employees %}
                                 <tr>
                                     <td>
-                                        <a href="?user={{ person.id }}{% if query %}&q={{ query }}{% endif %}"><strong>{{ person.full_name }}</strong></a>
-                                        <div class="muted">{{ person.employee_code }}{% if person.is_supervisor %} • Supervisor{% endif %}</div>
+                                        <a href="?employee={{ employee.id }}{% if query %}&q={{ query }}{% endif %}"><strong>{{ employee.full_name }}</strong></a>
+                                        <div class="muted">{{ employee.employee_code }}</div>
                                     </td>
-                                    <td>{% if person.supervisor %}{{ person.supervisor.full_name }}{% elif person.is_supervisor %}Supervisor{% else %}-{% endif %}</td>
-                                    <td>{{ person.team_name|default:"-" }}</td>
-                                    <td>{{ person.current_equipment.count }}</td>
+                                    <td>{% if employee.supervisor %}{{ employee.supervisor.full_name }}{% else %}-{% endif %}</td>
+                                    <td>{{ employee.team_name|default:"-" }}</td>
+                                    <td>{{ employee.current_equipment.count }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
@@ -232,13 +253,13 @@
                                 {% for equipment in equipment_list %}
                                 <tr>
                                     <td>
-                                        <a href="?equipment={{ equipment.id }}{% if query %}&q={{ query }}{% endif %}{% if selected_user %}&user={{ selected_user.id }}{% endif %}">
+                                        <a href="?equipment={{ equipment.id }}{% if query %}&q={{ query }}{% endif %}{% if selected_employee %}&employee={{ selected_employee.id }}{% endif %}">
                                             <strong>{{ equipment.asset_code }}</strong>
                                         </a>
-                                        <div class="muted">{{ equipment.name }}{% if equipment.brand %} • {{ equipment.brand }}{% endif %}</div>
+                                        <div class="muted">{{ equipment.name }}{% if equipment.category %} • {{ equipment.category.name }}{% endif %}</div>
                                     </td>
                                     <td>{{ equipment.get_status_display }}</td>
-                                    <td>{% if equipment.current_holder %}{{ equipment.current_holder.full_name }}{% else %}-{% endif %}</td>
+                                    <td>{% if equipment.current_employee %}{{ equipment.current_employee.full_name }}{% else %}-{% endif %}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
@@ -260,7 +281,7 @@
                         {% for assignment in recent_assignments %}
                         <div class="list-item">
                             <div>
-                                <strong>{{ assignment.equipment.asset_code }} • {{ assignment.holder.full_name }}</strong>
+                                <strong>{{ assignment.equipment.asset_code }} • {{ assignment.employee.full_name }}</strong>
                                 <p>
                                     {{ assignment.assigned_at|date:"M j, Y h:i A" }}
                                     {% if assignment.assigned_by %} • by {{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}{% endif %}
@@ -285,28 +306,28 @@
             <div class="card">
                 <div class="section-head">
                     <h3>Employee Detail</h3>
-                    {% if selected_user %}
-                    <span class="badge good">{{ selected_user.employee_code }}</span>
+                    {% if selected_employee %}
+                    <span class="badge good">{{ selected_employee.employee_code }}</span>
                     {% endif %}
                 </div>
-                {% if selected_user %}
-                <p><strong>{{ selected_user.full_name }}</strong></p>
+                {% if selected_employee %}
+                <p><strong>{{ selected_employee.full_name }}</strong></p>
                 <p class="muted">
-                    {% if selected_user.job_title %}{{ selected_user.job_title }} • {% endif %}
-                    {{ selected_user.department_name|default:"No department" }}
-                    {% if selected_user.team_name %} • {{ selected_user.team_name }}{% endif %}
+                    {% if selected_employee.job_title %}{{ selected_employee.job_title }} • {% endif %}
+                    {{ selected_employee.department|default:"No department" }}
+                    {% if selected_employee.team_name %} • {{ selected_employee.team_name }}{% endif %}
                 </p>
                 <p class="muted">
                     Supervisor:
-                    {% if selected_user.supervisor %}{{ selected_user.supervisor.full_name }}{% elif selected_user.is_supervisor %}Self-managed supervisor{% else %}-{% endif %}
+                    {% if selected_employee.supervisor %}{{ selected_employee.supervisor.full_name }}{% else %}-{% endif %}
                 </p>
                 <div class="section-head" style="margin-top: 18px;">
                     <h3>Current Equipment</h3>
-                    <span class="badge">{{ selected_user_current_equipment|length }}</span>
+                    <span class="badge">{{ selected_employee_current_equipment|length }}</span>
                 </div>
-                {% if selected_user_current_equipment %}
+                {% if selected_employee_current_equipment %}
                 <div class="list">
-                    {% for equipment in selected_user_current_equipment %}
+                    {% for equipment in selected_employee_current_equipment %}
                     <div class="list-item">
                         <div>
                             <strong>{{ equipment.asset_code }} • {{ equipment.name }}</strong>
@@ -321,11 +342,11 @@
 
                 <div class="section-head" style="margin-top: 18px;">
                     <h3>Assignment History</h3>
-                    <span class="badge">{{ selected_user_history|length }}</span>
+                    <span class="badge">{{ selected_employee_history|length }}</span>
                 </div>
-                {% if selected_user_history %}
+                {% if selected_employee_history %}
                 <div class="list">
-                    {% for entry in selected_user_history %}
+                    {% for entry in selected_employee_history %}
                     <div class="list-item">
                         <div>
                             <strong>{{ entry.equipment.asset_code }} • {{ entry.equipment.name }}</strong>
@@ -351,14 +372,18 @@
                 </div>
                 {% if selected_equipment %}
                 <p><strong>{{ selected_equipment.name }}</strong></p>
-                <p class="muted">{{ selected_equipment.get_status_display }}{% if selected_equipment.current_holder %} • Current holder: {{ selected_equipment.current_holder.full_name }}{% endif %}</p>
+                <p class="muted">{{ selected_equipment.get_status_display }}{% if selected_equipment.current_employee %} • Current holder: {{ selected_equipment.current_employee.full_name }}{% endif %}</p>
                 {% if selected_equipment_history %}
                 <div class="list">
                     {% for entry in selected_equipment_history %}
                     <div class="list-item">
                         <div>
-                            <strong>{{ entry.holder.full_name }}</strong>
-                            <p>{{ entry.holder.employee_code }} • {{ entry.assigned_at|date:"M j, Y h:i A" }}{% if entry.returned_at %} • Closed {{ entry.returned_at|date:"M j, Y h:i A" }}{% endif %}</p>
+                            <strong>{% if entry.employee %}{{ entry.employee.full_name }}{% else %}No employee{% endif %}</strong>
+                            <p>
+                                {% if entry.employee %}{{ entry.employee.employee_code }} • {% endif %}
+                                {{ entry.get_action_display }} • {{ entry.created_at|date:"M j, Y h:i A" }}
+                                {% if entry.status_snapshot %} • {{ entry.get_status_snapshot_display }}{% endif %}
+                            </p>
                         </div>
                     </div>
                     {% endfor %}

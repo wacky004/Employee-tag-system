@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Equipment, EquipmentAssignment, InventoryUser
+from .models import Employee, Equipment, EquipmentAssignment, EquipmentCategory, EquipmentHistoryLog, Supervisor
 
 User = get_user_model()
 
@@ -48,31 +48,36 @@ class InventoryDashboardTests(TestCase):
 
         self.assertRedirects(response, reverse("accounts:employee-dashboard"))
 
-    def test_super_admin_can_create_inventory_user_without_auth_login(self):
+    def test_super_admin_can_create_employee_without_auth_login(self):
         user = User.objects.create_user(
             username="supercreate",
             email="supercreate@example.com",
             password="pass12345",
             role=User.Role.SUPER_ADMIN,
         )
+        supervisor = Supervisor.objects.create(
+            full_name="Supervisor One",
+            employee_code="SUP-001",
+        )
 
         self.client.force_login(user)
         response = self.client.post(
             reverse("inventory:dashboard"),
             {
-                "inventory_action": "create_user",
-                "user-full_name": "Jane Holder",
-                "user-employee_code": "INV-001",
-                "user-department_name": "Operations",
-                "user-team_name": "Warehouse",
-                "user-job_title": "Storekeeper",
-                "user-is_active": "on",
+                "inventory_action": "create_employee",
+                "employee-full_name": "Jane Holder",
+                "employee-employee_code": "EMP-001",
+                "employee-department": "Operations",
+                "employee-team_name": "Warehouse",
+                "employee-job_title": "Storekeeper",
+                "employee-supervisor": supervisor.id,
+                "employee-is_active": "on",
             },
         )
 
         self.assertRedirects(response, reverse("inventory:dashboard"))
-        self.assertTrue(InventoryUser.objects.filter(employee_code="INV-001").exists())
-        self.assertFalse(User.objects.filter(username="INV-001").exists())
+        self.assertTrue(Employee.objects.filter(employee_code="EMP-001").exists())
+        self.assertFalse(User.objects.filter(username="EMP-001").exists())
 
     def test_super_admin_can_assign_equipment_and_history_is_preserved(self):
         user = User.objects.create_user(
@@ -81,12 +86,14 @@ class InventoryDashboardTests(TestCase):
             password="pass12345",
             role=User.Role.SUPER_ADMIN,
         )
-        holder_one = InventoryUser.objects.create(full_name="User One", employee_code="INV-100")
-        holder_two = InventoryUser.objects.create(full_name="User Two", employee_code="INV-101")
+        category = EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+        employee_one = Employee.objects.create(full_name="User One", employee_code="EMP-100")
+        employee_two = Employee.objects.create(full_name="User Two", employee_code="EMP-101")
         equipment = Equipment.objects.create(
             asset_code="LAP-001",
             name="Laptop",
-            status=Equipment.Status.BRAND_NEW,
+            category=category,
+            status=Equipment.Status.BRANDNEW,
         )
 
         self.client.force_login(user)
@@ -95,15 +102,15 @@ class InventoryDashboardTests(TestCase):
             {
                 "inventory_action": "assign_equipment",
                 "assignment-equipment": equipment.id,
-                "assignment-holder": holder_one.id,
+                "assignment-employee": employee_one.id,
                 "assignment-status": Equipment.Status.USED,
-                "assignment-notes": "Initial assignment",
+                "assignment-remarks": "Initial assignment",
             },
         )
         equipment.refresh_from_db()
 
         self.assertRedirects(first_response, reverse("inventory:dashboard"))
-        self.assertEqual(equipment.current_holder, holder_one)
+        self.assertEqual(equipment.current_employee, employee_one)
         self.assertEqual(equipment.status, Equipment.Status.USED)
 
         second_response = self.client.post(
@@ -111,16 +118,18 @@ class InventoryDashboardTests(TestCase):
             {
                 "inventory_action": "assign_equipment",
                 "assignment-equipment": equipment.id,
-                "assignment-holder": holder_two.id,
+                "assignment-employee": employee_two.id,
                 "assignment-status": Equipment.Status.TO_BE_CHECKED,
-                "assignment-notes": "Transferred to second holder",
+                "assignment-remarks": "Transferred to second holder",
             },
         )
         equipment.refresh_from_db()
         assignments = list(EquipmentAssignment.objects.filter(equipment=equipment))
+        history_logs = list(EquipmentHistoryLog.objects.filter(equipment=equipment))
 
         self.assertRedirects(second_response, reverse("inventory:dashboard"))
-        self.assertEqual(equipment.current_holder, holder_two)
+        self.assertEqual(equipment.current_employee, employee_two)
         self.assertEqual(equipment.status, Equipment.Status.TO_BE_CHECKED)
         self.assertEqual(len(assignments), 2)
         self.assertIsNotNone(assignments[1].returned_at)
+        self.assertGreaterEqual(len(history_logs), 3)
