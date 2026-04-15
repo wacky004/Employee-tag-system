@@ -37,7 +37,8 @@ class EmployeeForm(forms.ModelForm):
         queryset = Supervisor.objects.filter(is_active=True)
         if self.instance.pk and self.instance.supervisor_id:
             queryset = Supervisor.objects.filter(Q(is_active=True) | Q(pk=self.instance.supervisor_id))
-        self.fields["supervisor"].queryset = queryset.order_by("full_name")
+        supervisor_field = cast(forms.ModelChoiceField, self.fields["supervisor"])
+        supervisor_field.queryset = queryset.order_by("full_name")
 
 
 class EmployeeAssignSupervisorForm(forms.Form):
