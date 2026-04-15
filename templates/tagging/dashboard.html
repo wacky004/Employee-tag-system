@@ -13,6 +13,7 @@
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
                 <a href="{% url 'attendance:correction-review' %}" class="button secondary">Correction Review</a>
+                <a href="{% url 'core:settings' %}" class="button secondary">Settings</a>
                 <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
             </div>
@@ -58,6 +59,15 @@
                 <p>Use attendance reports to inspect daily summaries, exports, and employee tagging outcomes.</p>
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'reports:center' %}" class="button">Open Reports</a>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Settings</h3>
+                <div class="stat">Rules</div>
+                <p>Open system settings to manage tagging rules, break policies, correction permissions, and other attendance controls.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'core:settings' %}" class="button">Open Settings</a>
                 </div>
             </div>
         </div>
