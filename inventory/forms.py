@@ -44,6 +44,10 @@ class EmployeeAssignSupervisorForm(forms.Form):
         self.fields["supervisor"].queryset = Supervisor.objects.filter(is_active=True).order_by("full_name", "employee_code")
 
 
+class EmployeeSearchForm(forms.Form):
+    q = forms.CharField(required=False, label="Search")
+
+
 class EquipmentCategoryForm(forms.ModelForm):
     class Meta:
         model = EquipmentCategory

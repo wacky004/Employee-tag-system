@@ -11,6 +11,7 @@ from .forms import (
     EquipmentAssignmentCreateForm,
     EmployeeAssignSupervisorForm,
     EmployeeForm,
+    EmployeeSearchForm,
     EquipmentAssignmentForm,
     EquipmentCategoryForm,
     EquipmentForm,
@@ -419,6 +420,47 @@ class EmployeeListView(SuperAdminInventoryAccessMixin, ListView):
         context["query"] = self.request.GET.get("q", "").strip()
         context["selected_supervisor"] = self.request.GET.get("supervisor", "").strip()
         context["supervisors"] = Supervisor.objects.order_by("full_name", "employee_code")
+        return context
+
+
+class EmployeeSearchView(SuperAdminInventoryAccessMixin, ListView):
+    model = Employee
+    template_name = "inventory/employee_search.html"
+    context_object_name = "employees"
+
+    def get_queryset(self):
+        queryset = Employee.objects.select_related("supervisor").prefetch_related("current_equipment").order_by(
+            "full_name", "employee_code"
+        )
+        self.form = EmployeeSearchForm(self.request.GET or None)
+        if self.form.is_valid():
+            query = self.form.cleaned_data.get("q", "").strip()
+            if query:
+                queryset = queryset.filter(
+                    Q(full_name__icontains=query)
+                    | Q(employee_code__icontains=query)
+                    | Q(supervisor__full_name__icontains=query)
+                )
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["form"] = getattr(self, "form", EmployeeSearchForm())
+        return context
+
+
+class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
+    model = Employee
+    template_name = "inventory/employee_detail.html"
+    context_object_name = "employee"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        employee = self.object
+        context["current_equipment"] = Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+        context["assignment_history"] = EquipmentAssignment.objects.select_related(
+            "equipment", "assigned_by"
+        ).filter(employee=employee).order_by("-assigned_at", "-id")
         return context
 
 

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Search{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Employee Search</h1>
+                <p>Search employees by name, employee ID, or supervisor and review their currently assigned equipment.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:employee-create' %}" class="button secondary">Create Employee</a>
+                <a href="{% url 'inventory:employee-list' %}" class="button secondary">Employee List</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="get">
+                <div class="section-head">
+                    <h3>Search</h3>
+                    <div class="actions">
+                        <a href="{% url 'inventory:employee-search' %}" class="button ghost">Reset</a>
+                        <button type="submit" class="button">Search</button>
+                    </div>
+                </div>
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                </div>
+                {% endfor %}
+            </form>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Search Results</h3>
+                <span class="badge">{{ employees|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Supervisor</th>
+                            <th>Current Equipment</th>
+                            <th>Equipment Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for employee in employees %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'inventory:employee-detail' employee.pk %}"><strong>{{ employee.full_name }}</strong></a>
+                                <div class="muted">{{ employee.employee_code }}{% if employee.job_title %} • {{ employee.job_title }}{% endif %}</div>
+                            </td>
+                            <td>{% if employee.supervisor %}{{ employee.supervisor.full_name }}{% else %}-{% endif %}</td>
+                            <td>
+                                {% with equipment_list=employee.current_equipment.all %}
+                                {% if equipment_list %}
+                                {% for equipment in equipment_list %}
+                                <div>{{ equipment.asset_code }} • {{ equipment.name }}</div>
+                                {% endfor %}
+                                {% else %}
+                                -
+                                {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                {% with equipment_list=employee.current_equipment.all %}
+                                {% if equipment_list %}
+                                {% for equipment in equipment_list %}
+                                <div>{{ equipment.get_status_display }}</div>
+                                {% endfor %}
+                                {% else %}
+                                -
+                                {% endif %}
+                                {% endwith %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="muted">No employees found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

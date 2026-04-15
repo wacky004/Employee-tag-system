@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Employee Detail{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Employee Detail</h1>
+                <p>Review employee profile information, current equipment, and assignment history.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:employee-search' %}" class="button secondary">Back to Search</a>
+                <a href="{% url 'inventory:employee-list' %}" class="button secondary">Employee List</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>{{ employee.full_name }}</h3>
+                    <span class="badge">{{ employee.employee_code }}</span>
+                </div>
+                <p><strong>Department:</strong> {{ employee.department|default:"-" }}</p>
+                <p><strong>Team:</strong> {{ employee.team_name|default:"-" }}</p>
+                <p><strong>Job Title:</strong> {{ employee.job_title|default:"-" }}</p>
+                <p><strong>Supervisor:</strong> {% if employee.supervisor %}{{ employee.supervisor.full_name }}{% else %}-{% endif %}</p>
+                <p><strong>Status:</strong> {% if employee.is_active %}Active{% else %}Inactive{% endif %}</p>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Currently Assigned Equipment</h3>
+                    <span class="badge">{{ current_equipment|length }}</span>
+                </div>
+                {% if current_equipment %}
+                <div class="list">
+                    {% for equipment in current_equipment %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ equipment.asset_code }} • {{ equipment.name }}</strong>
+                            <p>{{ equipment.get_status_display }}{% if equipment.category %} • {{ equipment.category.name }}{% endif %}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">This employee has no currently assigned equipment.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Past Equipment Assignment History</h3>
+                <span class="badge">{{ assignment_history|length }}</span>
+            </div>
+            {% if assignment_history %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Equipment</th>
+                            <th>Assigned Date</th>
+                            <th>Returned Date</th>
+                            <th>Assigned By</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for assignment in assignment_history %}
+                        <tr>
+                            <td>{{ assignment.equipment.asset_code }} • {{ assignment.equipment.name }}</td>
+                            <td>{{ assignment.assigned_at|date:"M j, Y h:i A" }}</td>
+                            <td>{% if assignment.returned_at %}{{ assignment.returned_at|date:"M j, Y h:i A" }}{% else %}Active{% endif %}</td>
+                            <td>{% if assignment.assigned_by %}{{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.username }}{% else %}-{% endif %}</td>
+                            <td>{{ assignment.remarks|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">No assignment history for this employee yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

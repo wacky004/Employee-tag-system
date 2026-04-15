@@ -527,3 +527,57 @@ class SupervisorEmployeeManagementTests(TestCase):
 
         self.assertRedirects(supervisor_response, reverse("accounts:manager-dashboard"))
         self.assertRedirects(employee_response, reverse("accounts:manager-dashboard"))
+
+
+class EmployeeSearchModuleTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="supersearch",
+            email="supersearch@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.supervisor = Supervisor.objects.create(full_name="Search Supervisor", employee_code="SUP-700")
+        self.employee = Employee.objects.create(
+            full_name="Maria Santos",
+            employee_code="EMP-700",
+            supervisor=self.supervisor,
+            department="Operations",
+            team_name="Warehouse",
+            job_title="Storekeeper",
+        )
+        self.equipment = Equipment.objects.create(
+            asset_code="EQ-700",
+            name="Laptop Search",
+            status=Equipment.Status.USED,
+            current_employee=self.employee,
+        )
+        EquipmentAssignment.objects.create(
+            equipment=self.equipment,
+            employee=self.employee,
+            assigned_by=self.super_admin,
+            remarks="Issued for inventory work",
+        )
+
+    def test_search_page_filters_by_name_id_and_supervisor(self):
+        self.client.force_login(self.super_admin)
+
+        by_name = self.client.get(reverse("inventory:employee-search"), {"q": "Maria"})
+        by_id = self.client.get(reverse("inventory:employee-search"), {"q": "EMP-700"})
+        by_supervisor = self.client.get(reverse("inventory:employee-search"), {"q": "Search Supervisor"})
+
+        self.assertContains(by_name, "Maria Santos")
+        self.assertContains(by_id, "Maria Santos")
+        self.assertContains(by_supervisor, "Maria Santos")
+        self.assertContains(by_name, "Laptop Search")
+        self.assertContains(by_name, "Used")
+
+    def test_clicking_employee_opens_detail_page(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:employee-detail", kwargs={"pk": self.employee.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Maria Santos")
+        self.assertContains(response, "Search Supervisor")
+        self.assertContains(response, "Laptop Search")
+        self.assertContains(response, "Issued for inventory work")

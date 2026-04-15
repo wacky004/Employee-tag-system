@@ -3,7 +3,9 @@ from django.urls import path
 from .views import (
     EmployeeAssignSupervisorView,
     EmployeeCreateView,
+    EmployeeDetailView,
     EmployeeListView,
+    EmployeeSearchView,
     EquipmentAssignmentCreateView,
     EquipmentCreateView,
     EquipmentDetailView,
@@ -23,6 +25,8 @@ urlpatterns = [
     path("supervisors/create/", SupervisorCreateView.as_view(), name="supervisor-create"),
     path("employees/", EmployeeListView.as_view(), name="employee-list"),
     path("employees/create/", EmployeeCreateView.as_view(), name="employee-create"),
+    path("employees/search/", EmployeeSearchView.as_view(), name="employee-search"),
+    path("employees/<int:pk>/", EmployeeDetailView.as_view(), name="employee-detail"),
     path("employees/assign-supervisor/", EmployeeAssignSupervisorView.as_view(), name="employee-assign-supervisor"),
     path("equipment/assign/", EquipmentAssignmentCreateView.as_view(), name="equipment-assign"),
     path("equipment/create/", EquipmentCreateView.as_view(), name="equipment-create"),
