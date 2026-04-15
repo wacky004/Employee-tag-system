@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Management{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Inventory Management</h1>
+                <p>A starter business module you can enable for tenants that need stock, receiving, and issuance workflows.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
+                {% if request.user.role == "SUPER_ADMIN" %}
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
+                {% else %}
+                <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary">Back to Monitoring</a>
+                {% endif %}
+                <form method="post" action="{% url 'logout' %}" class="button-form">
+                    {% csrf_token %}
+                    <button type="submit" class="button secondary">Logout</button>
+                </form>
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Inventory as a tenant-ready module</h2>
+            <p>Attendance can stay the core platform, while inventory becomes one of the add-on modules each tenant enables based on their business. This page is the first entry point for that modular direction.</p>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Inventory Overview</h3>
+                <div class="stat">Stock</div>
+                <p>Surface current stock counts, low-stock alerts, and recently moved items from one module home.</p>
+            </div>
+            <div class="card">
+                <h3>Receiving and Issuance</h3>
+                <div class="stat">Flows</div>
+                <p>Track incoming deliveries, item issuance, internal requests, and returned stock as the next workflow layer.</p>
+            </div>
+            <div class="card">
+                <h3>Tenant Modules</h3>
+                <div class="stat">Flexible</div>
+                <p>Use feature flags later so one company can subscribe only to attendance while another also enables inventory.</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Suggested Inventory Tables</h3>
+                </div>
+                <div class="list">
+                    <div class="list-item">
+                        <div>
+                            <strong>Items</strong>
+                            <p>Master list of SKUs, descriptions, units, categories, and reorder thresholds.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Stock Movements</strong>
+                            <p>Every stock in, stock out, adjustment, and transfer becomes an auditable movement record.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Suppliers and Locations</strong>
+                            <p>Track who supplied the inventory and where it is stored for each tenant location.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Next Build Steps</h3>
+                </div>
+                <div class="list">
+                    <div class="list-item">
+                        <div>
+                            <strong>1. Add tenant ownership</strong>
+                            <p>Introduce a Company or Tenant model first so inventory data stays isolated per client.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>2. Define module access</strong>
+                            <p>Let each tenant enable attendance, inventory, or both without changing code.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>3. Build item and movement screens</strong>
+                            <p>Start with item master, stock in, stock out, and inventory reporting.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

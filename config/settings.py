@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "attendance",
     "auditlogs",
     "core",
+    "inventory",
     "reports",
 ]
 

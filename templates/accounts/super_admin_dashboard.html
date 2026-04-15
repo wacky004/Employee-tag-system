@@ -13,6 +13,7 @@
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
                 <a href="{% url 'attendance:correction-review' %}" class="button secondary">Corrections</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
                 <a href="{% url 'core:settings' %}" class="button secondary">Settings</a>
                 <a href="{% url 'reports:center' %}" class="button secondary">Reports</a>
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
@@ -43,6 +44,11 @@
                 <h3>Reports</h3>
                 <div class="stat">Exports</div>
                 <p>Company-wide attendance summaries and Excel export shortcuts can be surfaced here.</p>
+            </div>
+            <div class="card">
+                <h3>Inventory Management</h3>
+                <div class="stat">Module</div>
+                <p>Use this as the first optional business module so each tenant can enable inventory only when they need it.</p>
             </div>
         </div>
     </div>
