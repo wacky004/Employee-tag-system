@@ -10,6 +10,8 @@ from .views import (
     EmployeeListView,
     EmployeeSearchView,
     EquipmentAssignmentCreateView,
+    EquipmentCategoryCreateView,
+    EquipmentCategoryListView,
     EquipmentCreateView,
     EquipmentDetailView,
     EquipmentHistoryView,
@@ -30,6 +32,8 @@ app_name = "inventory"
 urlpatterns = [
     path("", InventoryDashboardView.as_view(), name="dashboard"),
     path("audit-logs/", AuditLogListView.as_view(), name="audit-log-list"),
+    path("categories/", EquipmentCategoryListView.as_view(), name="category-list"),
+    path("categories/create/", EquipmentCategoryCreateView.as_view(), name="category-create"),
     path("equipment/reports/", EquipmentReportListView.as_view(), name="equipment-report-list"),
     path("equipment/reports/defective/", DefectiveEquipmentReportView.as_view(), name="defective-equipment-report"),
     path("equipment/reports/unused/", UnusedEquipmentReportView.as_view(), name="unused-equipment-report"),

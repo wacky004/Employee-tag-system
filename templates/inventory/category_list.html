@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Categories{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Equipment Categories</h1>
+                <p>Manage the categories used when creating and organizing equipment records.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:category-create' %}" class="button">Add Category</a>
+                <a href="{% url 'inventory:equipment-create' %}" class="button secondary">Create Equipment</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>Category Directory</h3>
+                <span class="badge">{{ categories|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Code</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for category in categories %}
+                        <tr>
+                            <td><strong>{{ category.name }}</strong></td>
+                            <td>{{ category.code }}</td>
+                            <td>{{ category.description|default:"-" }}</td>
+                            <td>{% if category.is_active %}Active{% else %}Inactive{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="muted">No equipment categories yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

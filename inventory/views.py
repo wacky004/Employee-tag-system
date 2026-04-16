@@ -125,6 +125,24 @@ def _return_equipment_assignment(equipment, returned_at, notes, actor=None):
     return assignment
 
 
+def _return_all_employee_equipment(employee, returned_at, actor=None):
+    returned_count = 0
+    notes = f"Automatically returned because {employee.full_name} was marked inactive."
+    assigned_equipment = Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+
+    for equipment in assigned_equipment:
+        assignment = _return_equipment_assignment(
+            equipment=equipment,
+            returned_at=returned_at,
+            notes=notes,
+            actor=actor,
+        )
+        if assignment:
+            returned_count += 1
+
+    return returned_count
+
+
 class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles = (User.Role.SUPER_ADMIN, User.Role.ADMIN)
 
@@ -590,6 +608,28 @@ class SupervisorCreateView(SuperAdminInventoryAccessMixin, CreateView):
         return reverse("inventory:supervisor-list")
 
 
+class EquipmentCategoryListView(SuperAdminInventoryAccessMixin, ListView):
+    model = EquipmentCategory
+    template_name = "inventory/category_list.html"
+    context_object_name = "categories"
+
+    def get_queryset(self):
+        return EquipmentCategory.objects.order_by("name", "code")
+
+
+class EquipmentCategoryCreateView(SuperAdminInventoryAccessMixin, CreateView):
+    model = EquipmentCategory
+    form_class = EquipmentCategoryForm
+    template_name = "inventory/category_create.html"
+
+    def form_valid(self, form):
+        messages.success(self.request, "Equipment category created successfully.")
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("inventory:category-list")
+
+
 class SupervisorUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
     model = Supervisor
     form_class = SupervisorForm
@@ -737,8 +777,22 @@ class EmployeeUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
     template_name = "inventory/employee_update.html"
 
     def form_valid(self, form):
+        original = self.get_object()
+        became_inactive = original.is_active and not form.cleaned_data["is_active"]
         messages.success(self.request, "Employee updated successfully.")
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if became_inactive:
+            returned_count = _return_all_employee_equipment(
+                employee=self.object,
+                returned_at=timezone.now(),
+                actor=self.request.user,
+            )
+            if returned_count:
+                messages.info(
+                    self.request,
+                    f"{returned_count} equipment item(s) were automatically returned to inventory.",
+                )
+        return response
 
     def get_success_url(self):
         return reverse("inventory:employee-detail", kwargs={"pk": self.object.pk})

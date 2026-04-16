@@ -22,6 +22,10 @@
                         <span class="inventory-nav__title">Equipment</span>
                         <span class="inventory-nav__meta">Assets and status views</span>
                     </a>
+                    <a href="{% url 'inventory:category-list' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Categories</span>
+                        <span class="inventory-nav__meta">Equipment grouping options</span>
+                    </a>
                     <a href="{% url 'inventory:equipment-assign' %}" class="inventory-nav__item">
                         <span class="inventory-nav__title">Assignments</span>
                         <span class="inventory-nav__meta">Issue and return assets</span>
@@ -169,6 +173,7 @@
                         <div class="inventory-quick-actions">
                             {% if can_manage_inventory %}
                             <a href="{% url 'inventory:equipment-create' %}" class="button">Add Equipment</a>
+                            <a href="{% url 'inventory:category-create' %}" class="button secondary">Add Category</a>
                             <a href="{% url 'inventory:equipment-assign' %}" class="button secondary">Assign Equipment</a>
                             <a href="{% url 'inventory:employee-create' %}" class="button secondary">Add Employee</a>
                             {% endif %}

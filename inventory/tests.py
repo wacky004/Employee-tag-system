@@ -236,6 +236,57 @@ class EquipmentCreateModuleTests(TestCase):
             ).exists()
         )
 
+
+class EquipmentCategoryModuleTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="supercategory",
+            email="supercategory@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="admincategory",
+            email="admincategory@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+
+    def test_super_admin_can_open_category_pages(self):
+        self.client.force_login(self.super_admin)
+
+        list_response = self.client.get(reverse("inventory:category-list"))
+        create_response = self.client.get(reverse("inventory:category-create"))
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(create_response.status_code, 200)
+        self.assertContains(list_response, "Equipment Categories")
+        self.assertContains(create_response, "Create Equipment Category")
+
+    def test_super_admin_can_create_equipment_category(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:category-create"),
+            {
+                "name": "Tablet",
+                "code": "TABLET",
+                "description": "Tablet devices for field use",
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("inventory:category-list"))
+        self.assertTrue(EquipmentCategory.objects.filter(code="TABLET", name="Tablet").exists())
+
+    def test_admin_cannot_access_category_management_pages(self):
+        self.client.force_login(self.admin)
+
+        list_response = self.client.get(reverse("inventory:category-list"))
+        create_response = self.client.get(reverse("inventory:category-create"))
+
+        self.assertRedirects(list_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(create_response, reverse("accounts:manager-dashboard"))
+
     def test_super_admin_can_update_equipment_without_changing_assignment_history(self):
         user = User.objects.create_user(
             username="superupdateequipment",
@@ -333,6 +384,21 @@ class EquipmentAssignmentModuleTests(TestCase):
         self.assertEqual(assignment.employee, self.employee)
         self.assertEqual(assignment.remarks, "Assigned for workstation use")
         self.assertTrue(history.exists())
+
+    def test_assignment_page_lists_only_active_inventory_employees(self):
+        inactive_employee = Employee.objects.create(
+            full_name="Inactive Employee",
+            employee_code="EMP-999",
+            is_active=False,
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:equipment-assign"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.employee.full_name)
+        self.assertNotContains(response, inactive_employee.full_name)
+        self.assertContains(response, "Only active inventory employees are listed here.")
 
     def test_cannot_assign_equipment_when_already_active(self):
         other_employee = Employee.objects.create(full_name="Other Employee", employee_code="EMP-901")
@@ -669,6 +735,87 @@ class SupervisorEmployeeManagementTests(TestCase):
         self.assertEqual(employee.full_name, "Employee Three Updated")
         self.assertEqual(employee.supervisor, supervisor)
         self.assertEqual(employee.job_title, "Lead Clerk")
+
+    def test_marking_employee_inactive_returns_all_current_equipment(self):
+        supervisor = Supervisor.objects.create(full_name="Supervisor Four", employee_code="SUP-104")
+        employee = Employee.objects.create(
+            full_name="Employee Four",
+            employee_code="EMP-204",
+            supervisor=supervisor,
+            is_active=True,
+        )
+        equipment_one = Equipment.objects.create(
+            asset_code="EQ-204-A",
+            name="Laptop A",
+            status=Equipment.Status.USED,
+            current_employee=employee,
+        )
+        equipment_two = Equipment.objects.create(
+            asset_code="EQ-204-B",
+            name="Laptop B",
+            status=Equipment.Status.USED,
+            current_employee=employee,
+        )
+        assignment_one = EquipmentAssignment.objects.create(
+            equipment=equipment_one,
+            employee=employee,
+            assigned_by=self.super_admin,
+        )
+        assignment_two = EquipmentAssignment.objects.create(
+            equipment=equipment_two,
+            employee=employee,
+            assigned_by=self.super_admin,
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:employee-update", kwargs={"pk": employee.pk}),
+            {
+                "full_name": employee.full_name,
+                "employee_code": employee.employee_code,
+                "department": "",
+                "team_name": "",
+                "job_title": "",
+                "supervisor": supervisor.id,
+            },
+            follow=True,
+        )
+
+        employee.refresh_from_db()
+        equipment_one.refresh_from_db()
+        equipment_two.refresh_from_db()
+        assignment_one.refresh_from_db()
+        assignment_two.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(employee.is_active)
+        self.assertIsNone(equipment_one.current_employee)
+        self.assertIsNone(equipment_two.current_employee)
+        self.assertIsNotNone(assignment_one.returned_at)
+        self.assertIsNotNone(assignment_two.returned_at)
+        self.assertTrue(
+            EquipmentHistoryLog.objects.filter(
+                equipment=equipment_one,
+                action=EquipmentHistoryLog.Action.RETURNED,
+                remarks__icontains="marked inactive",
+            ).exists()
+        )
+        self.assertTrue(
+            EquipmentHistoryLog.objects.filter(
+                equipment=equipment_two,
+                action=EquipmentHistoryLog.Action.RETURNED,
+                remarks__icontains="marked inactive",
+            ).exists()
+        )
+
+    def test_create_employee_page_defaults_new_records_to_active(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("inventory:employee-create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only active employees appear in equipment assignment dropdowns.")
+        self.assertContains(response, 'name="is_active"', html=False)
+        self.assertContains(response, "checked", html=False)
 
     def test_employee_list_search_filters_by_name_id_and_supervisor(self):
         supervisor = Supervisor.objects.create(full_name="Target Supervisor", employee_code="SUP-103")
