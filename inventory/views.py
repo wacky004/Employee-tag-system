@@ -1,11 +1,18 @@
+from io import BytesIO
+
+from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db import transaction
 from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.views import View
 from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView
+from openpyxl import Workbook, load_workbook
 
 from .forms import (
     EquipmentAssignmentCreateForm,
@@ -15,6 +22,7 @@ from .forms import (
     EquipmentAssignmentForm,
     EquipmentCategoryForm,
     EquipmentForm,
+    InventoryWorkbookImportForm,
     EquipmentReturnForm,
     SupervisorForm,
 )
@@ -29,6 +37,13 @@ from .models import (
 )
 
 User = get_user_model()
+
+WORKBOOK_SHEETS = {
+    "Categories": ["code", "name", "description", "is_active"],
+    "Supervisors": ["employee_code", "full_name", "department", "job_title", "is_active"],
+    "Employees": ["employee_code", "full_name", "department", "team_name", "job_title", "supervisor_code", "is_active"],
+    "Equipment": ["asset_code", "name", "category_code", "brand", "model", "serial_number", "status", "notes"],
+}
 
 
 def _dashboard_url(user):
@@ -90,6 +105,234 @@ def _filter_equipment_queryset(queryset, params):
         queryset = queryset.filter(current_employee__isnull=True)
 
     return queryset
+
+
+def _normalize_cell(value):
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
+
+def _parse_bool(value, default=True):
+    normalized = _normalize_cell(value).lower()
+    if not normalized:
+        return default
+    if normalized in {"1", "true", "yes", "y", "active"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "inactive"}:
+        return False
+    raise forms.ValidationError(f"Invalid boolean value: {value}")
+
+
+def _read_sheet_rows(workbook, sheet_name):
+    if sheet_name not in workbook.sheetnames:
+        raise forms.ValidationError(f"Missing worksheet: {sheet_name}")
+
+    worksheet = workbook[sheet_name]
+    expected_headers = WORKBOOK_SHEETS[sheet_name]
+    rows = list(worksheet.iter_rows(values_only=True))
+    if not rows:
+        return []
+
+    headers = [_normalize_cell(value) for value in rows[0]]
+    if headers[: len(expected_headers)] != expected_headers:
+        raise forms.ValidationError(
+            f"Worksheet '{sheet_name}' must use these headers: {', '.join(expected_headers)}."
+        )
+
+    parsed_rows = []
+    for index, row in enumerate(rows[1:], start=2):
+        values = list(row[: len(expected_headers)])
+        if not any(value not in (None, "") for value in values):
+            continue
+        parsed_rows.append((index, dict(zip(expected_headers, values))))
+    return parsed_rows
+
+
+def _import_inventory_workbook(file_obj):
+    workbook = load_workbook(file_obj, data_only=True)
+    status_choices = {code for code, _label in Equipment.Status.choices}
+    results = {
+        "categories": 0,
+        "supervisors": 0,
+        "employees": 0,
+        "equipment": 0,
+    }
+
+    with transaction.atomic():
+        for row_number, row in _read_sheet_rows(workbook, "Categories"):
+            code = _normalize_cell(row["code"])
+            name = _normalize_cell(row["name"])
+            if not code or not name:
+                raise forms.ValidationError(f"Categories row {row_number} must include code and name.")
+            EquipmentCategory.objects.update_or_create(
+                code=code,
+                defaults={
+                    "name": name,
+                    "description": _normalize_cell(row["description"]),
+                    "is_active": _parse_bool(row["is_active"]),
+                },
+            )
+            results["categories"] += 1
+
+        for row_number, row in _read_sheet_rows(workbook, "Supervisors"):
+            employee_code = _normalize_cell(row["employee_code"])
+            full_name = _normalize_cell(row["full_name"])
+            if not employee_code or not full_name:
+                raise forms.ValidationError(
+                    f"Supervisors row {row_number} must include employee_code and full_name."
+                )
+            Supervisor.objects.update_or_create(
+                employee_code=employee_code,
+                defaults={
+                    "full_name": full_name,
+                    "department": _normalize_cell(row["department"]),
+                    "job_title": _normalize_cell(row["job_title"]),
+                    "is_active": _parse_bool(row["is_active"]),
+                },
+            )
+            results["supervisors"] += 1
+
+        for row_number, row in _read_sheet_rows(workbook, "Employees"):
+            employee_code = _normalize_cell(row["employee_code"])
+            full_name = _normalize_cell(row["full_name"])
+            supervisor_code = _normalize_cell(row["supervisor_code"])
+            supervisor = None
+            if not employee_code or not full_name:
+                raise forms.ValidationError(
+                    f"Employees row {row_number} must include employee_code and full_name."
+                )
+            if supervisor_code:
+                supervisor = Supervisor.objects.filter(employee_code=supervisor_code).first()
+                if not supervisor:
+                    raise forms.ValidationError(
+                        f"Employees row {row_number} references unknown supervisor code '{supervisor_code}'."
+                    )
+            Employee.objects.update_or_create(
+                employee_code=employee_code,
+                defaults={
+                    "full_name": full_name,
+                    "department": _normalize_cell(row["department"]),
+                    "team_name": _normalize_cell(row["team_name"]),
+                    "job_title": _normalize_cell(row["job_title"]),
+                    "supervisor": supervisor,
+                    "is_active": _parse_bool(row["is_active"]),
+                },
+            )
+            results["employees"] += 1
+
+        for row_number, row in _read_sheet_rows(workbook, "Equipment"):
+            asset_code = _normalize_cell(row["asset_code"])
+            name = _normalize_cell(row["name"])
+            category_code = _normalize_cell(row["category_code"])
+            status = _normalize_cell(row["status"]) or Equipment.Status.UNUSED
+            category = None
+
+            if not asset_code or not name:
+                raise forms.ValidationError(
+                    f"Equipment row {row_number} must include asset_code and name."
+                )
+            if category_code:
+                category = EquipmentCategory.objects.filter(code=category_code).first()
+                if not category:
+                    raise forms.ValidationError(
+                        f"Equipment row {row_number} references unknown category code '{category_code}'."
+                    )
+            if status not in status_choices:
+                raise forms.ValidationError(
+                    f"Equipment row {row_number} has invalid status '{status}'."
+                )
+
+            Equipment.objects.update_or_create(
+                asset_code=asset_code,
+                defaults={
+                    "name": name,
+                    "category": category,
+                    "brand": _normalize_cell(row["brand"]),
+                    "model": _normalize_cell(row["model"]),
+                    "serial_number": _normalize_cell(row["serial_number"]) or None,
+                    "status": status,
+                    "notes": _normalize_cell(row["notes"]),
+                },
+            )
+            results["equipment"] += 1
+
+    return results
+
+
+def _build_inventory_workbook():
+    workbook = Workbook()
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
+
+    def populate_sheet(title, headers, rows):
+        worksheet = workbook.create_sheet(title=title)
+        worksheet.append(headers)
+        for row in rows:
+            worksheet.append(row)
+
+    populate_sheet(
+        "Categories",
+        WORKBOOK_SHEETS["Categories"],
+        [
+            [category.code, category.name, category.description, "TRUE" if category.is_active else "FALSE"]
+            for category in EquipmentCategory.objects.order_by("name", "code")
+        ],
+    )
+    populate_sheet(
+        "Supervisors",
+        WORKBOOK_SHEETS["Supervisors"],
+        [
+            [
+                supervisor.employee_code,
+                supervisor.full_name,
+                supervisor.department,
+                supervisor.job_title,
+                "TRUE" if supervisor.is_active else "FALSE",
+            ]
+            for supervisor in Supervisor.objects.order_by("full_name", "employee_code")
+        ],
+    )
+    populate_sheet(
+        "Employees",
+        WORKBOOK_SHEETS["Employees"],
+        [
+            [
+                employee.employee_code,
+                employee.full_name,
+                employee.department,
+                employee.team_name,
+                employee.job_title,
+                employee.supervisor.employee_code if employee.supervisor else "",
+                "TRUE" if employee.is_active else "FALSE",
+            ]
+            for employee in Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        ],
+    )
+    populate_sheet(
+        "Equipment",
+        WORKBOOK_SHEETS["Equipment"],
+        [
+            [
+                equipment.asset_code,
+                equipment.name,
+                equipment.category.code if equipment.category else "",
+                equipment.brand,
+                equipment.model,
+                equipment.serial_number or "",
+                equipment.status,
+                equipment.notes,
+            ]
+            for equipment in Equipment.objects.select_related("category").order_by("asset_code", "name")
+        ],
+    )
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output.getvalue()
 
 
 def _get_active_assignment(equipment):
@@ -394,6 +637,44 @@ class AuditLogListView(SuperAdminInventoryAccessMixin, ListView):
 
     def get_queryset(self):
         return InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+
+
+class InventoryWorkbookView(SuperAdminInventoryAccessMixin, FormView):
+    form_class = InventoryWorkbookImportForm
+    template_name = "inventory/workbook.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["sheet_map"] = WORKBOOK_SHEETS
+        return context
+
+    def form_valid(self, form):
+        try:
+            results = _import_inventory_workbook(form.cleaned_data["workbook"])
+        except forms.ValidationError as exc:
+            form.add_error("workbook", exc.message)
+            return self.form_invalid(form)
+
+        messages.success(
+            self.request,
+            "Workbook imported successfully: "
+            f"{results['categories']} categories, "
+            f"{results['supervisors']} supervisors, "
+            f"{results['employees']} employees, "
+            f"{results['equipment']} equipment rows processed.",
+        )
+        return redirect("inventory:workbook")
+
+
+class InventoryWorkbookExportView(SuperAdminInventoryAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        payload = _build_inventory_workbook()
+        response = HttpResponse(
+            payload,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="inventory-workbook.xlsx"'
+        return response
 
 
 class EquipmentReportListView(InventoryAccessMixin, ListView):

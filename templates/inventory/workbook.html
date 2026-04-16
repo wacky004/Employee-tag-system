@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Workbook{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Inventory Workbook</h1>
+                <p>Import or export inventory records in Excel so you can update many entries at once.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'inventory:workbook-export' %}" class="button">Download Workbook</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="section-head">
+                    <h3>Upload Workbook</h3>
+                    <span class="badge good">Super Admin Only</span>
+                </div>
+                <p class="muted">Use the exported workbook format, update the rows in Excel, then upload the file here.</p>
+                <form method="post" enctype="multipart/form-data" style="margin-top: 16px;">
+                    {% csrf_token %}
+                    {% for field in form %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
+                        {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if form.non_field_errors %}
+                    <div class="muted">{{ form.non_field_errors|join:", " }}</div>
+                    {% endif %}
+                    <div class="actions">
+                        <button type="submit" class="button">Import Workbook</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Included Sheets</h3>
+                </div>
+                <div class="list">
+                    {% for sheet_name, columns in sheet_map.items %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ sheet_name }}</strong>
+                            <p>{{ columns|join:", " }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>Import Notes</h3>
+            </div>
+            <div class="list">
+                <div class="list-item">
+                    <div>
+                        <strong>Create or update in bulk</strong>
+                        <p>Rows are matched by unique codes such as category code, supervisor code, employee code, and asset code.</p>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div>
+                        <strong>Workbook-first workflow</strong>
+                        <p>Download the workbook first to get the correct headers and sheet names before editing in Excel.</p>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div>
+                        <strong>Assignments stay protected</strong>
+                        <p>This workbook updates master records only. Equipment assignment history and return history remain managed through the assignment flow.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

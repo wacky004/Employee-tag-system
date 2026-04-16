@@ -39,6 +39,9 @@ class EmployeeForm(forms.ModelForm):
             queryset = Supervisor.objects.filter(Q(is_active=True) | Q(pk=self.instance.supervisor_id))
         supervisor_field = cast(forms.ModelChoiceField, self.fields["supervisor"])
         supervisor_field.queryset = queryset.order_by("full_name")
+        self.fields["is_active"].help_text = "Only active employees appear in equipment assignment dropdowns."
+        if not self.is_bound and not self.instance.pk:
+            self.fields["is_active"].initial = True
 
 
 class EmployeeAssignSupervisorForm(forms.Form):
@@ -55,6 +58,18 @@ class EmployeeAssignSupervisorForm(forms.Form):
 
 class EmployeeSearchForm(forms.Form):
     q = forms.CharField(required=False, label="Search")
+
+
+class InventoryWorkbookImportForm(forms.Form):
+    workbook = forms.FileField(
+        help_text="Upload the Excel workbook exported from the inventory module."
+    )
+
+    def clean_workbook(self):
+        workbook = self.cleaned_data["workbook"]
+        if not workbook.name.lower().endswith(".xlsx"):
+            raise forms.ValidationError("Please upload an .xlsx workbook.")
+        return workbook
 
 
 class EquipmentCategoryForm(forms.ModelForm):
@@ -107,6 +122,7 @@ class EquipmentAssignmentForm(forms.Form):
         employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
         equipment_field.queryset = Equipment.objects.order_by("asset_code", "name")
         employee_field.queryset = Employee.objects.filter(is_active=True).order_by("full_name")
+        employee_field.help_text = "Only active inventory employees are listed here."
 
     def clean(self):
         cleaned_data = super().clean()
@@ -133,6 +149,7 @@ class EquipmentAssignmentCreateForm(forms.Form):
         employee_field = cast(forms.ModelChoiceField, self.fields["employee"])
         equipment_field.queryset = Equipment.objects.select_related("current_employee").order_by("asset_code", "name")
         employee_field.queryset = Employee.objects.filter(is_active=True).order_by("full_name", "employee_code")
+        employee_field.help_text = "Only active inventory employees are listed here."
 
     def clean(self):
         cleaned_data = super().clean()

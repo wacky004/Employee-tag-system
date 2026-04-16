@@ -42,6 +42,10 @@
                         <span class="inventory-nav__title">Reports</span>
                         <span class="inventory-nav__meta">Filtering and summary pages</span>
                     </a>
+                    <a href="{% url 'inventory:workbook' %}" class="inventory-nav__item">
+                        <span class="inventory-nav__title">Import / Export</span>
+                        <span class="inventory-nav__meta">Excel workbook updates</span>
+                    </a>
                     {% if can_manage_inventory %}
                     <a href="{% url 'inventory:audit-log-list' %}" class="inventory-nav__item">
                         <span class="inventory-nav__title">Audit Log</span>
@@ -176,6 +180,7 @@
                             <a href="{% url 'inventory:category-create' %}" class="button secondary">Add Category</a>
                             <a href="{% url 'inventory:equipment-assign' %}" class="button secondary">Assign Equipment</a>
                             <a href="{% url 'inventory:employee-create' %}" class="button secondary">Add Employee</a>
+                            <a href="{% url 'inventory:workbook' %}" class="button secondary">Import / Export Excel</a>
                             {% endif %}
                             <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">View Equipment</a>
                             <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective Report</a>

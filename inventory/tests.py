@@ -1,7 +1,11 @@
+from io import BytesIO
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import Workbook, load_workbook
 
 from .models import (
     Employee,
@@ -286,6 +290,93 @@ class EquipmentCategoryModuleTests(TestCase):
 
         self.assertRedirects(list_response, reverse("accounts:manager-dashboard"))
         self.assertRedirects(create_response, reverse("accounts:manager-dashboard"))
+
+
+class InventoryWorkbookModuleTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="superworkbook",
+            email="superworkbook@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.admin = User.objects.create_user(
+            username="adminworkbook",
+            email="adminworkbook@example.com",
+            password="pass12345",
+            role=User.Role.ADMIN,
+        )
+
+    def _build_workbook_upload(self):
+        workbook = Workbook()
+
+        categories = workbook.active
+        categories.title = "Categories"
+        categories.append(["code", "name", "description", "is_active"])
+        categories.append(["LAPTOP", "Laptop", "Portable computer", "TRUE"])
+
+        supervisors = workbook.create_sheet("Supervisors")
+        supervisors.append(["employee_code", "full_name", "department", "job_title", "is_active"])
+        supervisors.append(["SUP-EXCEL", "Excel Supervisor", "Operations", "Supervisor", "TRUE"])
+
+        employees = workbook.create_sheet("Employees")
+        employees.append(["employee_code", "full_name", "department", "team_name", "job_title", "supervisor_code", "is_active"])
+        employees.append(["EMP-EXCEL", "Excel Employee", "Operations", "Warehouse", "Clerk", "SUP-EXCEL", "TRUE"])
+
+        equipment = workbook.create_sheet("Equipment")
+        equipment.append(["asset_code", "name", "category_code", "brand", "model", "serial_number", "status", "notes"])
+        equipment.append(["EQ-EXCEL", "Excel Laptop", "LAPTOP", "Dell", "Latitude", "SER-EXCEL", Equipment.Status.BRANDNEW, "Imported from workbook"])
+
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+        return SimpleUploadedFile(
+            "inventory-workbook.xlsx",
+            output.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_super_admin_can_export_inventory_workbook(self):
+        EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+        self.client.force_login(self.super_admin)
+
+        response = self.client.get(reverse("inventory:workbook-export"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(filename=BytesIO(response.content))
+        self.assertEqual(
+            workbook.sheetnames,
+            ["Categories", "Supervisors", "Employees", "Equipment"],
+        )
+        self.assertEqual(workbook["Categories"]["A2"].value, "LAPTOP")
+
+    def test_super_admin_can_import_inventory_workbook(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:workbook"),
+            {"workbook": self._build_workbook_upload()},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Workbook imported successfully")
+        self.assertTrue(EquipmentCategory.objects.filter(code="LAPTOP", name="Laptop").exists())
+        self.assertTrue(Supervisor.objects.filter(employee_code="SUP-EXCEL", full_name="Excel Supervisor").exists())
+        self.assertTrue(Employee.objects.filter(employee_code="EMP-EXCEL", full_name="Excel Employee").exists())
+        self.assertTrue(Equipment.objects.filter(asset_code="EQ-EXCEL", name="Excel Laptop").exists())
+
+    def test_admin_cannot_access_inventory_workbook_tools(self):
+        self.client.force_login(self.admin)
+
+        page_response = self.client.get(reverse("inventory:workbook"))
+        export_response = self.client.get(reverse("inventory:workbook-export"))
+
+        self.assertRedirects(page_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(export_response, reverse("accounts:manager-dashboard"))
 
     def test_super_admin_can_update_equipment_without_changing_assignment_history(self):
         user = User.objects.create_user(
