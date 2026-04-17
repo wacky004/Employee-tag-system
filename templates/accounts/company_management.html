@@ -45,6 +45,7 @@
                                 <th>Login Code</th>
                                 <th>Tagging</th>
                                 <th>Inventory</th>
+                                <th>Queueing</th>
                                 <th>Status</th>
                                 <th></th>
                             </tr>
@@ -56,12 +57,13 @@
                                 <td>{{ company.code }}</td>
                                 <td>{% if company.can_use_tagging %}Enabled{% else %}Disabled{% endif %}</td>
                                 <td>{% if company.can_use_inventory %}Enabled{% else %}Disabled{% endif %}</td>
+                                <td>{% if company.can_use_queueing %}Enabled{% else %}Disabled{% endif %}</td>
                                 <td>{% if company.is_active %}Active{% else %}Inactive{% endif %}</td>
                                 <td><a href="?edit_company={{ company.id }}" class="button ghost">Edit</a></td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="6" class="muted">No organizations have been created yet.</td>
+                                <td colspan="7" class="muted">No organizations have been created yet.</td>
                             </tr>
                             {% endfor %}
                         </tbody>

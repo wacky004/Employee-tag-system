@@ -246,6 +246,7 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
         context.update(
             {
+                "can_view_queueing_module": self.request.user.has_queueing_module_access(),
                 "selected_date": selected_date,
                 "selected_team": selected_team,
                 "selected_department": selected_department,
@@ -359,6 +360,7 @@ class SuperAdminDashboardView(RoleRequiredMixin, TemplateView):
             {
                 "can_view_tagging_module": self.request.user.has_tagging_module_access(),
                 "can_view_inventory_module": self.request.user.has_inventory_module_access(),
+                "can_view_queueing_module": self.request.user.has_queueing_module_access(),
                 "can_manage_modules": self.request.user.can_manage_module_access(),
                 "can_manage_companies": self.request.user.can_manage_companies(),
                 "organization_name": self.request.user.company.name if self.request.user.company_id else "AquiSo Platform",
@@ -426,12 +428,23 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
         user.company = Company.objects.filter(pk=company_id).first() if company_id else None
         user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
         user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
+        user.can_access_queueing = request.POST.get("can_access_queueing") == "on"
         if user.company_id:
             if not user.company.can_use_tagging:
                 user.can_access_tagging = False
             if not user.company.can_use_inventory:
                 user.can_access_inventory = False
-        user.save(update_fields=["company", "limit_to_enabled_modules", "can_access_tagging", "can_access_inventory"])
+            if not user.company.can_use_queueing:
+                user.can_access_queueing = False
+        user.save(
+            update_fields=[
+                "company",
+                "limit_to_enabled_modules",
+                "can_access_tagging",
+                "can_access_inventory",
+                "can_access_queueing",
+            ]
+        )
         messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
         return redirect(self._build_redirect_url(query, selected_role))
 

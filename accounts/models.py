@@ -8,6 +8,7 @@ class Company(models.Model):
     is_active = models.BooleanField(default=True)
     can_use_tagging = models.BooleanField(default=True)
     can_use_inventory = models.BooleanField(default=True)
+    can_use_queueing = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -39,6 +40,8 @@ class Company(models.Model):
             updates["can_access_tagging"] = False
         if not self.can_use_inventory:
             updates["can_access_inventory"] = False
+        if not self.can_use_queueing:
+            updates["can_access_queueing"] = False
         if updates:
             self.users.update(**updates)
 
@@ -85,6 +88,7 @@ class User(AbstractUser):
     limit_to_enabled_modules = models.BooleanField(default=False)
     can_access_tagging = models.BooleanField(default=False)
     can_access_inventory = models.BooleanField(default=False)
+    can_access_queueing = models.BooleanField(default=False)
     email = models.EmailField(unique=True)
 
     class Meta:
@@ -119,6 +123,7 @@ class User(AbstractUser):
         module_map = {
             "tagging": self.company.can_use_tagging,
             "inventory": self.company.can_use_inventory,
+            "queueing": self.company.can_use_queueing,
         }
         return module_map.get(module_name, False)
 
@@ -135,3 +140,12 @@ class User(AbstractUser):
         if self.role == self.Role.SUPER_ADMIN:
             return self.has_full_module_access() or self.can_access_inventory
         return self.role == self.Role.ADMIN or self.can_access_inventory
+
+    def has_queueing_module_access(self):
+        if not self.company_allows_module("queueing"):
+            return False
+        if self.role == self.Role.SUPER_ADMIN:
+            return self.has_full_module_access() or self.can_access_queueing
+        if self.role == self.Role.ADMIN:
+            return self.can_access_queueing
+        return False

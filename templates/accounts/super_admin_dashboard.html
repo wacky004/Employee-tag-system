@@ -18,6 +18,9 @@
                 {% if can_view_inventory_module %}
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
                 {% endif %}
+                {% if can_view_queueing_module %}
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing</a>
+                {% endif %}
                 {% if request.user.company_id %}
                 <a href="{% url 'tenant_admin:index' %}" class="button secondary">Tenant Admin</a>
                 {% endif %}
@@ -60,6 +63,17 @@
             </div>
             {% endif %}
 
+            {% if can_view_queueing_module %}
+            <div class="card">
+                <h3>Queueing System</h3>
+                <div class="stat">Module</div>
+                <p>Open the queueing workspace to monitor lines, counters, and queue operations as this module grows inside AquiSo.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:dashboard' %}" class="button">Open Queueing</a>
+                </div>
+            </div>
+            {% endif %}
+
             {% if can_manage_modules %}
             <div class="card">
                 <h3>User Management</h3>
@@ -93,7 +107,7 @@
             </div>
             {% endif %}
 
-            {% if not can_view_inventory_module and not can_view_tagging_module and not can_manage_modules %}
+            {% if not can_view_inventory_module and not can_view_tagging_module and not can_view_queueing_module and not can_manage_modules %}
             <div class="card">
                 <h3>No Modules Enabled</h3>
                 <div class="stat">Waiting</div>

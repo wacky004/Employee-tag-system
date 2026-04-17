@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Queueing System{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queueing System</h1>
+                <p>{{ organization_name }}. This module is now connected to AquiSo and ready for queueing features in the next phase.</p>
+            </div>
+            <div class="actions">
+                <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                {% if request.user.role == "SUPER_ADMIN" %}
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
+                {% else %}
+                <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary">Back to Monitoring</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <section class="hero">
+            <h2>Queue operations will live here</h2>
+            <p>Phase 1 adds the queueing module to the current web app with access control, routing, and tenant-aware visibility. This keeps the module inside AquiSo instead of creating a separate website.</p>
+        </section>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Integrated Module</h3>
+                <div class="stat">Phase 1</div>
+                <p>The Queueing System now works as part of the same Django project alongside Employee Tagging and Inventory Management.</p>
+            </div>
+
+            <div class="card">
+                <h3>Access Control</h3>
+                <div class="stat">Restricted</div>
+                <p>Only full superadmins, tenant superadmins with queueing access, and admins with queueing access can open this module.</p>
+            </div>
+
+            <div class="card">
+                <h3>Tenant Ready</h3>
+                <div class="stat">Module Toggle</div>
+                <p>Full superadmins can enable or disable Queueing per tenant from organization management and per-user module access.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

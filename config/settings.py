@@ -16,7 +16,7 @@ if ENV_FILE.exists():
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = ['10.88.4.72', '127.0.0.1', 'localhost']
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "core",
     "inventory",
     "reports",
+    "queueing",
 ]
 
 MIDDLEWARE = [

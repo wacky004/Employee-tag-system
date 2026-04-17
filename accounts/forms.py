@@ -43,6 +43,7 @@ class CompanyForm(forms.ModelForm):
             "is_active",
             "can_use_tagging",
             "can_use_inventory",
+            "can_use_queueing",
         ]
 
     def __init__(self, *args, **kwargs):

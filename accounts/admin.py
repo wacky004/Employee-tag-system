@@ -35,8 +35,8 @@ class RoleAdmin(PlatformOnlyAdminMixin, admin.ModelAdmin):
 
 @admin.register(Company)
 class CompanyAdmin(PlatformOnlyAdminMixin, admin.ModelAdmin):
-    list_display = ("name", "code", "is_active", "can_use_tagging", "can_use_inventory")
-    list_filter = ("is_active", "can_use_tagging", "can_use_inventory")
+    list_display = ("name", "code", "is_active", "can_use_tagging", "can_use_inventory", "can_use_queueing")
+    list_filter = ("is_active", "can_use_tagging", "can_use_inventory", "can_use_queueing")
     search_fields = ("name", "code")
 
 
@@ -52,6 +52,7 @@ class BaseScopedUserAdmin(BaseUserAdmin):
                     "limit_to_enabled_modules",
                     "can_access_tagging",
                     "can_access_inventory",
+                    "can_access_queueing",
                 )
             },
         ),
@@ -67,6 +68,7 @@ class BaseScopedUserAdmin(BaseUserAdmin):
         "limit_to_enabled_modules",
         "can_access_tagging",
         "can_access_inventory",
+        "can_access_queueing",
         "is_staff",
     )
     list_filter = (
@@ -76,6 +78,7 @@ class BaseScopedUserAdmin(BaseUserAdmin):
         "limit_to_enabled_modules",
         "can_access_tagging",
         "can_access_inventory",
+        "can_access_queueing",
         "is_staff",
         "is_superuser",
         "is_active",
@@ -90,6 +93,8 @@ class BaseScopedUserAdmin(BaseUserAdmin):
             list_display.remove("can_access_tagging")
         if not self._module_is_available_for_request(request, "inventory") and "can_access_inventory" in list_display:
             list_display.remove("can_access_inventory")
+        if not self._module_is_available_for_request(request, "queueing") and "can_access_queueing" in list_display:
+            list_display.remove("can_access_queueing")
         return tuple(list_display)
 
     def get_list_filter(self, request):
@@ -98,6 +103,8 @@ class BaseScopedUserAdmin(BaseUserAdmin):
             list_filter.remove("can_access_tagging")
         if not self._module_is_available_for_request(request, "inventory") and "can_access_inventory" in list_filter:
             list_filter.remove("can_access_inventory")
+        if not self._module_is_available_for_request(request, "queueing") and "can_access_queueing" in list_filter:
+            list_filter.remove("can_access_queueing")
         return tuple(list_filter)
 
     def _has_scoped_admin_access(self, request):
@@ -142,6 +149,8 @@ class BaseScopedUserAdmin(BaseUserAdmin):
                 readonly_fields.append("can_access_tagging")
             if request.user.company_id and not request.user.company.can_use_inventory:
                 readonly_fields.append("can_access_inventory")
+            if request.user.company_id and not request.user.company.can_use_queueing:
+                readonly_fields.append("can_access_queueing")
         return tuple(dict.fromkeys(readonly_fields))
 
     def get_fieldsets(self, request, obj=None):
@@ -155,6 +164,8 @@ class BaseScopedUserAdmin(BaseUserAdmin):
                         fields.remove("can_access_tagging")
                     if not request.user.company.can_use_inventory and "can_access_inventory" in fields:
                         fields.remove("can_access_inventory")
+                    if not request.user.company.can_use_queueing and "can_access_queueing" in fields:
+                        fields.remove("can_access_queueing")
                 updated_fieldsets.append((name, {**options, "fields": tuple(fields)}))
             return tuple(updated_fieldsets)
         return tuple(fieldsets)
@@ -167,6 +178,8 @@ class BaseScopedUserAdmin(BaseUserAdmin):
                 obj.can_access_tagging = False
             if not obj.company.can_use_inventory:
                 obj.can_access_inventory = False
+            if not obj.company.can_use_queueing:
+                obj.can_access_queueing = False
         super().save_model(request, obj, form, change)
 
 
@@ -198,6 +211,7 @@ class TenantUserAdmin(BaseScopedUserAdmin):
         "limit_to_enabled_modules",
         "can_access_tagging",
         "can_access_inventory",
+        "can_access_queueing",
         "is_staff",
         "is_active",
     )

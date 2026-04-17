@@ -57,6 +57,7 @@
                             <th>Selected Modules Only</th>
                             <th>Tagging</th>
                             <th>Inventory</th>
+                            <th>Queueing</th>
                             <th>Save</th>
                         </tr>
                     </thead>
@@ -110,12 +111,22 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if user_item.company_id and not user_item.company.can_use_queueing %}
+                                <span class="muted">Disabled for tenant</span>
+                                {% else %}
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" name="can_access_queueing" form="module-access-form-{{ user_item.id }}" {% if user_item.can_access_queueing %}checked{% endif %}>
+                                    Allow
+                                </label>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <button type="submit" class="button secondary" form="module-access-form-{{ user_item.id }}">Update Access</button>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="muted">No users matched the current search or category filter.</td>
+                            <td colspan="8" class="muted">No users matched the current search or category filter.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
