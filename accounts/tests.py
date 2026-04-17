@@ -273,6 +273,16 @@ class ModuleAccessManagementTests(TestCase):
             password="password123",
             email="module-user@example.com",
             role=User.Role.EMPLOYEE,
+            first_name="Module",
+            last_name="User",
+        )
+        self.admin_user = User.objects.create_user(
+            username="module-admin",
+            password="password123",
+            email="module-admin@example.com",
+            role=User.Role.ADMIN,
+            first_name="Admin",
+            last_name="Viewer",
         )
 
     def test_super_admin_can_update_user_module_access(self):
@@ -292,6 +302,39 @@ class ModuleAccessManagementTests(TestCase):
         self.assertTrue(self.user.can_access_tagging)
         self.assertTrue(self.user.can_access_inventory)
         self.assertContains(response, "Module access updated")
+
+    def test_module_access_page_searches_users(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("accounts:module-access"), {"q": "module-user"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "module-user")
+        self.assertNotContains(response, "module-admin")
+
+    def test_module_access_page_filters_by_category(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("accounts:module-access"), {"role": User.Role.ADMIN})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "module-admin")
+        self.assertNotContains(response, "module-user")
+
+    def test_module_access_update_keeps_active_filters(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("accounts:module-access"),
+            {
+                "user_id": self.user.id,
+                "can_access_tagging": "on",
+                "q": "module-user",
+                "role": User.Role.EMPLOYEE,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            f"{reverse('accounts:module-access')}?q=module-user&role={User.Role.EMPLOYEE}",
+        )
 
     def test_admin_with_tagging_toggle_can_open_employee_tagging_dashboard(self):
         admin_user = User.objects.create_user(

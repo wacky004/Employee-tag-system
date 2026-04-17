@@ -20,6 +20,33 @@
                 <h3>User Access Matrix</h3>
                 <span class="badge">{{ managed_users|length }}</span>
             </div>
+            <form method="get" class="filter-form" style="margin-bottom: 18px;">
+                <div class="filter-grid">
+                    <div class="field">
+                        <label for="module-access-search">Search User</label>
+                        <input
+                            type="text"
+                            id="module-access-search"
+                            name="q"
+                            value="{{ query }}"
+                            placeholder="Search by name, username, or email"
+                        >
+                    </div>
+                    <div class="field">
+                        <label for="module-access-role">Category</label>
+                        <select id="module-access-role" name="role">
+                            <option value="">All categories</option>
+                            {% for value, label in role_choices %}
+                            <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button type="submit" class="button">Apply Filters</button>
+                    <a href="{% url 'accounts:module-access' %}" class="button secondary">Reset</a>
+                </div>
+            </form>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -37,12 +64,15 @@
                             <td>
                                 <strong>{{ user_item.get_full_name|default:user_item.username }}</strong>
                                 <div class="muted">{{ user_item.email }}</div>
+                                <div class="muted">@{{ user_item.username }}</div>
                             </td>
                             <td>{{ user_item.get_role_display }}</td>
                             <td>
                                 <form method="post" id="module-access-form-{{ user_item.id }}">
                                     {% csrf_token %}
                                     <input type="hidden" name="user_id" value="{{ user_item.id }}">
+                                    <input type="hidden" name="q" value="{{ query }}">
+                                    <input type="hidden" name="role" value="{{ selected_role }}">
                                 </form>
                                 <label class="checkbox-inline">
                                     <input type="checkbox" name="can_access_tagging" form="module-access-form-{{ user_item.id }}" {% if user_item.can_access_tagging %}checked{% endif %}>
@@ -58,6 +88,10 @@
                             <td>
                                 <button type="submit" class="button secondary" form="module-access-form-{{ user_item.id }}">Update Access</button>
                             </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No users matched the current search or category filter.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

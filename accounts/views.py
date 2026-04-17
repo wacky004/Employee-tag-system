@@ -1,4 +1,5 @@
 from datetime import date
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -336,18 +337,52 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
     allowed_roles = (User.Role.SUPER_ADMIN,)
 
     def post(self, request, *args, **kwargs):
+        query = request.POST.get("q", "").strip()
+        selected_role = request.POST.get("role", "").strip()
         user = User.objects.filter(pk=request.POST.get("user_id")).first()
         if not user:
             messages.error(request, "User not found.")
-            return redirect("accounts:module-access")
+            return redirect(self._build_redirect_url(query, selected_role))
 
         user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
         user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
         user.save(update_fields=["can_access_tagging", "can_access_inventory"])
         messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
-        return redirect("accounts:module-access")
+        return redirect(self._build_redirect_url(query, selected_role))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["managed_users"] = User.objects.order_by("role", "first_name", "last_name", "username")
+        query = self.request.GET.get("q", "").strip()
+        selected_role = self.request.GET.get("role", "").strip()
+        managed_users = User.objects.order_by("role", "first_name", "last_name", "username")
+
+        if query:
+            managed_users = managed_users.filter(
+                Q(username__icontains=query)
+                | Q(first_name__icontains=query)
+                | Q(last_name__icontains=query)
+                | Q(email__icontains=query)
+            )
+        if selected_role:
+            managed_users = managed_users.filter(role=selected_role)
+
+        context.update(
+            {
+                "managed_users": managed_users,
+                "query": query,
+                "selected_role": selected_role,
+                "role_choices": User.Role.choices,
+            }
+        )
         return context
+
+    def _build_redirect_url(self, query, selected_role):
+        base_url = reverse("accounts:module-access")
+        params = {}
+        if query:
+            params["q"] = query
+        if selected_role:
+            params["role"] = selected_role
+        if not params:
+            return base_url
+        return f"{base_url}?{urlencode(params)}"
