@@ -29,6 +29,19 @@ class Company(models.Model):
             self.normalize_identifier(self.name),
         }
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.sync_user_module_access()
+
+    def sync_user_module_access(self):
+        updates = {}
+        if not self.can_use_tagging:
+            updates["can_access_tagging"] = False
+        if not self.can_use_inventory:
+            updates["can_access_inventory"] = False
+        if updates:
+            self.users.update(**updates)
+
 
 class Role(models.Model):
     code = models.CharField(max_length=20, unique=True)

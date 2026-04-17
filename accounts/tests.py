@@ -565,6 +565,42 @@ class CompanyManagementTests(TestCase):
         self.assertFalse(company.can_use_tagging)
         self.assertTrue(company.can_use_inventory)
 
+    def test_updating_company_modules_syncs_existing_tenant_user_access(self):
+        company = Company.objects.create(
+            name="Signal Works",
+            code="SIGNAL",
+            can_use_tagging=True,
+            can_use_inventory=True,
+        )
+        tenant_user = User.objects.create_user(
+            username="signal-user",
+            password="password123",
+            email="signal-user@example.com",
+            role=User.Role.ADMIN,
+            company=company,
+            can_access_tagging=True,
+            can_access_inventory=True,
+        )
+
+        self.client.force_login(self.platform_super_admin)
+        response = self.client.post(
+            reverse("accounts:company-management"),
+            {
+                "company_id": company.id,
+                "name": "Signal Works",
+                "code": "SIGNAL",
+                "is_active": "on",
+                "can_use_tagging": "",
+                "can_use_inventory": "",
+            },
+            follow=True,
+        )
+        tenant_user.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(tenant_user.can_access_tagging)
+        self.assertFalse(tenant_user.can_access_inventory)
+
 
 class TenantAdminTests(TestCase):
     def setUp(self):
@@ -650,6 +686,18 @@ class TenantAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login/", response["Location"])
+
+    def test_tenant_admin_hides_disabled_module_columns_and_filters(self):
+        self.company.can_use_tagging = False
+        self.company.save(update_fields=["can_use_tagging"])
+
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get(reverse("tenant_admin:accounts_user_changelist"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Can access tagging")
+        self.assertNotContains(response, "By can access tagging")
+        self.assertContains(response, "Can access inventory")
 
     def test_tenant_admin_tag_logs_only_show_same_company_records(self):
         self.client.force_login(self.tenant_super_admin)

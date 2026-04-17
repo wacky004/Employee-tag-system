@@ -81,6 +81,25 @@ class BaseScopedUserAdmin(BaseUserAdmin):
         "is_active",
     )
 
+    def _module_is_available_for_request(self, request, module_name):
+        return request.user.can_manage_companies() or request.user.company_allows_module(module_name)
+
+    def get_list_display(self, request):
+        list_display = list(super().get_list_display(request))
+        if not self._module_is_available_for_request(request, "tagging") and "can_access_tagging" in list_display:
+            list_display.remove("can_access_tagging")
+        if not self._module_is_available_for_request(request, "inventory") and "can_access_inventory" in list_display:
+            list_display.remove("can_access_inventory")
+        return tuple(list_display)
+
+    def get_list_filter(self, request):
+        list_filter = list(super().get_list_filter(request))
+        if not self._module_is_available_for_request(request, "tagging") and "can_access_tagging" in list_filter:
+            list_filter.remove("can_access_tagging")
+        if not self._module_is_available_for_request(request, "inventory") and "can_access_inventory" in list_filter:
+            list_filter.remove("can_access_inventory")
+        return tuple(list_filter)
+
     def _has_scoped_admin_access(self, request):
         return request.user.is_authenticated and (
             request.user.can_manage_companies()
@@ -143,6 +162,11 @@ class BaseScopedUserAdmin(BaseUserAdmin):
     def save_model(self, request, obj, form, change):
         if not request.user.can_manage_companies():
             obj.company = request.user.company
+        if obj.company_id:
+            if not obj.company.can_use_tagging:
+                obj.can_access_tagging = False
+            if not obj.company.can_use_inventory:
+                obj.can_access_inventory = False
         super().save_model(request, obj, form, change)
 
 
