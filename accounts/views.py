@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import TemplateView, View
@@ -375,23 +375,35 @@ class CompanyManagementView(RoleRequiredMixin, TemplateView):
         return self.request.user.can_manage_companies()
 
     def post(self, request, *args, **kwargs):
-        form = CompanyForm(request.POST)
+        instance = self._get_edit_company()
+        form = CompanyForm(request.POST, instance=instance)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Organization created successfully.")
+            company = form.save()
+            if instance:
+                messages.success(request, f"Organization {company.name} updated successfully.")
+            else:
+                messages.success(request, "Organization created successfully.")
             return redirect("accounts:company-management")
-        messages.error(request, "Organization creation failed. Please review the form and try again.")
+        messages.error(request, "Organization save failed. Please review the form and try again.")
         return self.render_to_response(self.get_context_data(company_form=form))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        edit_company = self._get_edit_company()
         context.update(
             {
-                "company_form": kwargs.get("company_form") or CompanyForm(),
+                "company_form": kwargs.get("company_form") or CompanyForm(instance=edit_company),
                 "companies": Company.objects.order_by("name"),
+                "editing_company": edit_company,
             }
         )
         return context
+
+    def _get_edit_company(self):
+        company_id = self.request.GET.get("edit_company") or self.request.POST.get("company_id")
+        if not company_id:
+            return None
+        return get_object_or_404(Company, pk=company_id)
 
 
 class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
@@ -414,6 +426,11 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
         user.company = Company.objects.filter(pk=company_id).first() if company_id else None
         user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
         user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
+        if user.company_id:
+            if not user.company.can_use_tagging:
+                user.can_access_tagging = False
+            if not user.company.can_use_inventory:
+                user.can_access_inventory = False
         user.save(update_fields=["company", "limit_to_enabled_modules", "can_access_tagging", "can_access_inventory"])
         messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
         return redirect(self._build_redirect_url(query, selected_role))

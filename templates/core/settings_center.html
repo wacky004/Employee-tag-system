@@ -8,11 +8,13 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Super Admin Settings</h1>
-                <p>Manage rules, teams, roles, employee profiles, work setup, and permissions without touching code.</p>
+                <p>{% if current_company %}Manage rules, teams, roles, and employee profiles for {{ current_company.name }} only.{% else %}Manage rules, teams, roles, employee profiles, work setup, and permissions without touching code.{% endif %}</p>
             </div>
             <div class="actions">
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Dashboard</a>
+                {% if show_platform_admin %}
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
+                {% endif %}
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}
                     <button type="submit" class="button secondary">Logout</button>
@@ -78,6 +80,12 @@
                             <button type="submit" class="button">{% if editing_profile %}Update Profile{% else %}Save Profile{% endif %}</button>
                             {% if editing_profile %}
                             <a href="{% url 'core:settings' %}" class="button ghost">Cancel Edit</a>
+                            <form method="post" class="button-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete-employee-profile">
+                                <input type="hidden" name="profile_id" value="{{ editing_profile.id }}">
+                                <button type="submit" class="button danger">Remove Profile</button>
+                            </form>
                             {% endif %}
                         </div>
                     </form>
@@ -173,6 +181,12 @@
                                 <strong>{{ department.name }}</strong>
                                 <p>{{ department.code }}</p>
                             </div>
+                            <form method="post" class="button-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete-department">
+                                <input type="hidden" name="department_id" value="{{ department.id }}">
+                                <button type="submit" class="button ghost">Remove</button>
+                            </form>
                         </div>
                         {% empty %}
                         <div class="empty-state">No departments configured yet.</div>
@@ -208,7 +222,15 @@
                                 <strong>{{ team.name }}</strong>
                                 <p>{{ team.code }} | {{ team.department.name|default:"No department" }}</p>
                             </div>
-                            <div class="badge">{% if team.lead %}{{ team.lead.get_full_name|default:team.lead.username }}{% else %}No lead{% endif %}</div>
+                            <div class="actions">
+                                <div class="badge">{% if team.lead %}{{ team.lead.get_full_name|default:team.lead.username }}{% else %}No lead{% endif %}</div>
+                                <form method="post" class="button-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete-team">
+                                    <input type="hidden" name="team_id" value="{{ team.id }}">
+                                    <button type="submit" class="button ghost">Remove</button>
+                                </form>
+                            </div>
                         </div>
                         {% empty %}
                         <div class="empty-state">No teams configured yet.</div>

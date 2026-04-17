@@ -17,12 +17,18 @@
 
         <div class="grid">
             <div class="card">
-                <h3>Create Organization</h3>
+                <h3>{% if editing_company %}Edit Organization{% else %}Create Organization{% endif %}</h3>
                 <p>Use the organization code during login before the username and password.</p>
                 <form method="post">
                     {% csrf_token %}
+                    {% if editing_company %}
+                    <input type="hidden" name="company_id" value="{{ editing_company.id }}">
+                    {% endif %}
                     {{ company_form.as_p }}
-                    <button type="submit" class="button">Create Organization</button>
+                    <button type="submit" class="button">{% if editing_company %}Update Organization{% else %}Create Organization{% endif %}</button>
+                    {% if editing_company %}
+                    <a href="{% url 'accounts:company-management' %}" class="button secondary">Cancel Edit</a>
+                    {% endif %}
                 </form>
             </div>
 
@@ -40,6 +46,7 @@
                                 <th>Tagging</th>
                                 <th>Inventory</th>
                                 <th>Status</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -50,10 +57,11 @@
                                 <td>{% if company.can_use_tagging %}Enabled{% else %}Disabled{% endif %}</td>
                                 <td>{% if company.can_use_inventory %}Enabled{% else %}Disabled{% endif %}</td>
                                 <td>{% if company.is_active %}Active{% else %}Inactive{% endif %}</td>
+                                <td><a href="?edit_company={{ company.id }}" class="button ghost">Edit</a></td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="muted">No organizations have been created yet.</td>
+                                <td colspan="6" class="muted">No organizations have been created yet.</td>
                             </tr>
                             {% endfor %}
                         </tbody>

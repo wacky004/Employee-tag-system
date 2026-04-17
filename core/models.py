@@ -2,6 +2,13 @@ from django.db import models
 
 
 class SystemSetting(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="system_settings",
+    )
     company_name = models.CharField(max_length=150, default="Attendance System")
     default_timezone = models.CharField(max_length=64, default="Asia/Manila")
     required_work_minutes = models.PositiveIntegerField(default=480)

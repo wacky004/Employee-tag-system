@@ -414,6 +414,27 @@ class ModuleAccessManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tagging Panel")
 
+    def test_company_disabled_module_forces_user_access_off(self):
+        self.company.can_use_inventory = False
+        self.company.save(update_fields=["can_use_inventory"])
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("accounts:module-access"),
+            {
+                "user_id": self.user.id,
+                "company": self.company.id,
+                "can_access_tagging": "on",
+                "can_access_inventory": "on",
+            },
+            follow=True,
+        )
+        self.user.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.user.can_access_tagging)
+        self.assertFalse(self.user.can_access_inventory)
+
 
 class OrganizationLoginTests(TestCase):
     def setUp(self):
@@ -521,6 +542,28 @@ class CompanyManagementTests(TestCase):
         response = self.client.get(reverse("accounts:company-management"))
 
         self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
+    def test_platform_super_admin_can_update_company_modules(self):
+        company = Company.objects.create(name="North Ridge", code="NORTHRIDGE", can_use_tagging=True, can_use_inventory=False)
+
+        self.client.force_login(self.platform_super_admin)
+        response = self.client.post(
+            reverse("accounts:company-management"),
+            {
+                "company_id": company.id,
+                "name": "North Ridge",
+                "code": "NORTHRIDGE",
+                "is_active": "on",
+                "can_use_tagging": "",
+                "can_use_inventory": "on",
+            },
+            follow=True,
+        )
+        company.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(company.can_use_tagging)
+        self.assertTrue(company.can_use_inventory)
 
 
 class TenantAdminTests(TestCase):

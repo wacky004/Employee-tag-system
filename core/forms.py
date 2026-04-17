@@ -48,6 +48,17 @@ class TeamForm(forms.ModelForm):
         model = Team
         fields = ["name", "code", "description", "department", "lead"]
 
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop("company", None)
+        super().__init__(*args, **kwargs)
+        departments = Department.objects.order_by("name")
+        leads = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        if company is not None:
+            departments = departments.filter(company=company)
+            leads = leads.filter(company=company)
+        self.fields["department"].queryset = departments
+        self.fields["lead"].queryset = leads
+
 
 class RoleForm(forms.ModelForm):
     class Meta:
@@ -81,6 +92,20 @@ class EmployeeProfileForm(forms.ModelForm):
             "schedule_end_time": forms.TimeInput(attrs={"type": "time"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop("company", None)
+        super().__init__(*args, **kwargs)
+        users = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        departments = Department.objects.order_by("name")
+        teams = Team.objects.select_related("department").order_by("name")
+        if company is not None:
+            users = users.filter(company=company)
+            departments = departments.filter(company=company)
+            teams = teams.filter(company=company)
+        self.fields["user"].queryset = users
+        self.fields["department"].queryset = departments
+        self.fields["team"].queryset = teams
+
     def clean_user(self):
         user = self.cleaned_data["user"]
         qs = EmployeeProfile.objects.filter(user=user)
@@ -98,6 +123,14 @@ class AttendanceResetForm(forms.Form):
     )
     work_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     reason = forms.CharField(widget=forms.Textarea)
+
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop("company", None)
+        super().__init__(*args, **kwargs)
+        users = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        if company is not None:
+            users = users.filter(company=company)
+        self.fields["user"].queryset = users
 
     def reset_attendance(self, actor):
         user = self.cleaned_data["user"]

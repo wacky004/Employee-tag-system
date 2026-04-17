@@ -119,7 +119,26 @@ class BaseScopedUserAdmin(BaseUserAdmin):
         readonly_fields = list(super().get_readonly_fields(request, obj))
         if not request.user.can_manage_companies():
             readonly_fields.append("company")
+            if request.user.company_id and not request.user.company.can_use_tagging:
+                readonly_fields.append("can_access_tagging")
+            if request.user.company_id and not request.user.company.can_use_inventory:
+                readonly_fields.append("can_access_inventory")
         return tuple(dict.fromkeys(readonly_fields))
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if request.user.company_id and not request.user.can_manage_companies():
+            updated_fieldsets = []
+            for name, options in fieldsets:
+                fields = list(options.get("fields", ()))
+                if name == "Access":
+                    if not request.user.company.can_use_tagging and "can_access_tagging" in fields:
+                        fields.remove("can_access_tagging")
+                    if not request.user.company.can_use_inventory and "can_access_inventory" in fields:
+                        fields.remove("can_access_inventory")
+                updated_fieldsets.append((name, {**options, "fields": tuple(fields)}))
+            return tuple(updated_fieldsets)
+        return tuple(fieldsets)
 
     def save_model(self, request, obj, form, change):
         if not request.user.can_manage_companies():
@@ -179,6 +198,8 @@ tenant_admin_site.register(User, TenantUserAdmin)
 
 
 class TenantScopedAdminMixin:
+    required_module = None
+
     def _has_tenant_admin_access(self, request):
         return request.user.is_authenticated and (
             request.user.can_manage_companies()
@@ -186,7 +207,11 @@ class TenantScopedAdminMixin:
         )
 
     def has_module_permission(self, request):
-        return self._has_tenant_admin_access(request)
+        if not self._has_tenant_admin_access(request):
+            return False
+        if self.required_module and request.user.company_id and not request.user.company_allows_module(self.required_module):
+            return False
+        return True
 
     def has_view_permission(self, request, obj=None):
         return self._has_tenant_admin_access(request)
@@ -202,6 +227,7 @@ class TenantScopedAdminMixin:
 
 
 class TenantScopedTagLogAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    required_module = "tagging"
     list_display = ("employee", "tag_type", "work_date", "timestamp", "source")
     list_filter = ("tag_type", "source", "work_date")
     search_fields = ("employee__username", "employee__first_name", "employee__last_name", "notes")
@@ -214,6 +240,7 @@ class TenantScopedTagLogAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
 
 
 class TenantScopedAttendanceSessionAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    required_module = "tagging"
     list_display = (
         "employee",
         "work_date",
@@ -240,6 +267,7 @@ class TenantScopedAttendanceSessionAdmin(TenantScopedAdminMixin, admin.ModelAdmi
 
 
 class TenantScopedOverbreakRecordAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    required_module = "tagging"
     list_display = ("employee", "tag_type", "work_date", "excess_minutes", "status")
     list_filter = ("status", "tag_type")
     search_fields = ("employee__username", "employee__first_name", "employee__last_name")
@@ -255,6 +283,7 @@ class TenantScopedOverbreakRecordAdmin(TenantScopedAdminMixin, admin.ModelAdmin)
 
 
 class TenantScopedCorrectionRequestAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    required_module = "tagging"
     list_display = ("employee", "request_type", "target_work_date", "requested_tag_type", "status", "reviewed_by", "created_at")
     list_filter = ("request_type", "status", "target_work_date")
     search_fields = ("employee__username", "employee__first_name", "employee__last_name", "reason", "details")
@@ -268,6 +297,7 @@ class TenantScopedCorrectionRequestAdmin(TenantScopedAdminMixin, admin.ModelAdmi
 
 
 class TenantScopedTagTypeAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    required_module = "tagging"
     list_display = ("code", "name", "category", "direction", "default_allowed_minutes", "is_active")
     list_filter = ("category", "direction", "is_active")
     search_fields = ("code", "name")
