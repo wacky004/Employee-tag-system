@@ -12,6 +12,7 @@
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'queueing:monitor-list' %}" class="button secondary">Queue Monitor</a>
                 <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
                 <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
                 {% if can_manage_queue_setup %}
@@ -106,9 +107,11 @@
                     <a href="{% url 'queueing:counter-list' %}" class="button secondary">Counters</a>
                     <a href="{% url 'queueing:setting-list' %}" class="button secondary">Queue Settings</a>
                     <a href="{% url 'queueing:history-list' %}" class="button secondary">History</a>
+                    <a href="{% url 'queueing:monitor-list' %}" class="button secondary">Queue Monitor</a>
                     {% else %}
                     <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
                     <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Queue Flow</a>
+                    <a href="{% url 'queueing:monitor-list' %}" class="button secondary">Queue Monitor</a>
                     {% endif %}
                 </div>
             </div>

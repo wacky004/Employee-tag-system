@@ -510,6 +510,42 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(response, completed_ticket.queue_number)
         self.assertContains(response, 'http-equiv="refresh" content="15"')
 
+    def test_monitor_list_shows_active_screens_and_current_ticket(self):
+        current_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R012",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.CALLED,
+            called_at=timezone.now(),
+        )
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:monitor-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Queue Monitor")
+        self.assertContains(response, self.screen.name)
+        self.assertContains(response, current_ticket.queue_number)
+        self.assertContains(response, reverse("queueing:monitor-view", kwargs={"slug": self.screen.slug}))
+
+    def test_monitor_view_shows_only_current_ticket_information(self):
+        current_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R013",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.SERVING,
+            called_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("queueing:monitor-view", kwargs={"slug": self.screen.slug}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Current Number")
+        self.assertContains(response, current_ticket.queue_number)
+        self.assertContains(response, self.counter.name)
+        self.assertNotContains(response, "Recent Called Numbers")
+
     def test_inactive_display_screen_is_not_publicly_accessible(self):
         self.screen.is_active = False
         self.screen.save(update_fields=["is_active"])

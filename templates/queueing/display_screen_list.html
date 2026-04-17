@@ -54,7 +54,12 @@
                             <td>{{ screen.refresh_interval_seconds }}s</td>
                             <td>{% if screen.is_active %}Active{% else %}Inactive{% endif %}</td>
                             <td>{{ screen.company.name }}</td>
-                            <td><a href="{% url 'queueing:display-screen-update' screen.pk %}" class="button ghost">Edit</a></td>
+                            <td>
+                                <div class="actions" style="margin-top: 0;">
+                                    <a href="{% url 'queueing:display-screen-update' screen.pk %}" class="button ghost">Edit</a>
+                                    <a href="{% url 'queueing:monitor-view' screen.slug %}" class="button ghost" target="_blank" rel="noopener">Monitor</a>
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>

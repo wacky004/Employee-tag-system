@@ -14,6 +14,7 @@
                 {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'queueing:history-list' %}" class="button secondary">Queue History</a>
                 {% endif %}
+                <a href="{% url 'queueing:monitor-list' %}" class="button secondary">Queue Monitor</a>
                 <a href="{% url 'queueing:ticket-create' %}" class="button secondary">Generate Ticket</a>
                 <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
             </div>

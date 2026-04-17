@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Monitor{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queue Monitor</h1>
+                <p>Open a service-specific queue monitor that only shows the current number being served.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+                <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>Available Monitors</h3>
+                <span class="badge">{{ screen_rows|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Screen</th>
+                            <th>Services</th>
+                            <th>Current Number</th>
+                            <th>Counter</th>
+                            <th>Refresh</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in screen_rows %}
+                        <tr>
+                            <td><strong>{{ row.screen.name }}</strong></td>
+                            <td>
+                                {% for service in row.services %}
+                                {{ service.name }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                <span class="muted">No linked services</span>
+                                {% endfor %}
+                            </td>
+                            <td>{% if row.current_ticket %}{{ row.current_ticket.queue_number }}{% else %}-{% endif %}</td>
+                            <td>{% if row.current_ticket and row.current_ticket.assigned_counter %}{{ row.current_ticket.assigned_counter.name }}{% else %}-{% endif %}</td>
+                            <td>{{ row.screen.refresh_interval_seconds }}s</td>
+                            <td>
+                                <div class="actions" style="margin-top: 0;">
+                                    <a href="{% url 'queueing:monitor-view' row.screen.slug %}" class="button" target="_blank" rel="noopener">Open Monitor</a>
+                                    <a href="{% url 'queueing:display-screen-view' row.screen.slug %}" class="button ghost" target="_blank" rel="noopener">Full Display</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="muted">No active queue monitors have been configured yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

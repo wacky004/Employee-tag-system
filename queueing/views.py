@@ -352,6 +352,64 @@ class QueueDisplayScreenView(DetailView):
         return context
 
 
+class QueueMonitorListView(QueueingSetupMixin, ListView):
+    model = QueueDisplayScreen
+    template_name = "queueing/monitor_list.html"
+    context_object_name = "screens"
+
+    def get_queryset(self):
+        queryset = QueueDisplayScreen.objects.select_related("company").prefetch_related("services").filter(is_active=True)
+        return self._company_queryset(queryset.order_by("name"))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        screen_rows = []
+        for screen in context["screens"]:
+            services = screen.services.filter(is_active=True).order_by("name", "code")
+            current_ticket = QueueTicket.objects.select_related("service", "assigned_counter").filter(
+                company=screen.company,
+                service__in=services,
+                status__in=[QueueTicket.Status.SERVING, QueueTicket.Status.CALLED],
+            ).order_by("-called_at", "-created_at", "-id").first()
+            screen_rows.append(
+                {
+                    "screen": screen,
+                    "services": services,
+                    "current_ticket": current_ticket,
+                }
+            )
+        context["screen_rows"] = screen_rows
+        return context
+
+
+class QueueMonitorView(DetailView):
+    model = QueueDisplayScreen
+    template_name = "queueing/monitor_view.html"
+    context_object_name = "screen"
+    slug_field = "slug"
+    slug_url_kwarg = "slug"
+
+    def get_queryset(self):
+        return QueueDisplayScreen.objects.filter(is_active=True).prefetch_related("services")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        screen = self.object
+        services = screen.services.filter(is_active=True).order_by("name", "code")
+        current_ticket = QueueTicket.objects.select_related("service", "assigned_counter").filter(
+            company=screen.company,
+            service__in=services,
+            status__in=[QueueTicket.Status.SERVING, QueueTicket.Status.CALLED],
+        ).order_by("-called_at", "-created_at", "-id").first()
+        context.update(
+            {
+                "screen_services": services,
+                "current_ticket": current_ticket,
+            }
+        )
+        return context
+
+
 class QueueOperatorPanelView(QueueingSetupMixin, TemplateView):
     template_name = "queueing/operator_panel.html"
 
