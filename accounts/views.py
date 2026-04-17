@@ -54,7 +54,9 @@ class RoleRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/employee_dashboard.html"
-    allowed_roles = (User.Role.EMPLOYEE,)
+
+    def test_func(self):
+        return self.request.user.role == User.Role.EMPLOYEE or self.request.user.has_tagging_module_access()
 
     TAG_BUTTONS = (
         ("TIME_IN", "Time In"),
@@ -327,3 +329,25 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 class SuperAdminDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/super_admin_dashboard.html"
     allowed_roles = (User.Role.SUPER_ADMIN,)
+
+
+class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
+    template_name = "accounts/module_access.html"
+    allowed_roles = (User.Role.SUPER_ADMIN,)
+
+    def post(self, request, *args, **kwargs):
+        user = User.objects.filter(pk=request.POST.get("user_id")).first()
+        if not user:
+            messages.error(request, "User not found.")
+            return redirect("accounts:module-access")
+
+        user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
+        user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
+        user.save(update_fields=["can_access_tagging", "can_access_inventory"])
+        messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
+        return redirect("accounts:module-access")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["managed_users"] = User.objects.order_by("role", "first_name", "last_name", "username")
+        return context

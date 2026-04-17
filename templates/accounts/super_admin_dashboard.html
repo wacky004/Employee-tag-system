@@ -48,7 +48,10 @@
             <div class="card">
                 <h3>User Management</h3>
                 <div class="stat">Roles</div>
-                <p>Manage employees, admins, future TL assignments, and log editing permissions.</p>
+                <p>Manage per-user module access for Tagging and Inventory without changing the user’s main role.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'accounts:module-access' %}" class="button">Manage Module Access</a>
+                </div>
             </div>
         </div>
     </div>

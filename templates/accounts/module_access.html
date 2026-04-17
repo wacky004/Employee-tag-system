@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Module Access{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Module Access</h1>
+                <p>Grant Tagging and Inventory access per user without changing the user’s main role.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>User Access Matrix</h3>
+                <span class="badge">{{ managed_users|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Role</th>
+                            <th>Tagging</th>
+                            <th>Inventory</th>
+                            <th>Save</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user_item in managed_users %}
+                        <tr>
+                            <td>
+                                <strong>{{ user_item.get_full_name|default:user_item.username }}</strong>
+                                <div class="muted">{{ user_item.email }}</div>
+                            </td>
+                            <td>{{ user_item.get_role_display }}</td>
+                            <td>
+                                <form method="post" id="module-access-form-{{ user_item.id }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="user_id" value="{{ user_item.id }}">
+                                </form>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" name="can_access_tagging" form="module-access-form-{{ user_item.id }}" {% if user_item.can_access_tagging %}checked{% endif %}>
+                                    Allow
+                                </label>
+                            </td>
+                            <td>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" name="can_access_inventory" form="module-access-form-{{ user_item.id }}" {% if user_item.can_access_inventory %}checked{% endif %}>
+                                    Allow
+                                </label>
+                            </td>
+                            <td>
+                                <button type="submit" class="button secondary" form="module-access-form-{{ user_item.id }}">Update Access</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

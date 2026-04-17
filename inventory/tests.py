@@ -48,6 +48,20 @@ class InventoryDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_employee_with_inventory_toggle_can_access_inventory_module(self):
+        user = User.objects.create_user(
+            username="employeeinventorytoggle",
+            email="employeeinventorytoggle@example.com",
+            password="pass12345",
+            role=User.Role.EMPLOYEE,
+            can_access_inventory=True,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("inventory:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+
     def test_inventory_pages_allow_same_origin_iframe_embedding(self):
         user = User.objects.create_user(
             username="frameinventory",

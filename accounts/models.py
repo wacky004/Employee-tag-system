@@ -34,6 +34,8 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+    can_access_tagging = models.BooleanField(default=False)
+    can_access_inventory = models.BooleanField(default=False)
     email = models.EmailField(unique=True)
 
     class Meta:
@@ -41,3 +43,9 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.get_full_name() or self.username
+
+    def has_tagging_module_access(self):
+        return self.role == self.Role.SUPER_ADMIN or self.can_access_tagging
+
+    def has_inventory_module_access(self):
+        return self.role in {self.Role.SUPER_ADMIN, self.Role.ADMIN} or self.can_access_inventory

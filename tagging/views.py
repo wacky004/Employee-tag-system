@@ -20,10 +20,8 @@ def _dashboard_url(user):
 
 
 class TaggingAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
-    allowed_roles = (User.Role.SUPER_ADMIN,)
-
     def test_func(self):
-        return self.request.user.role in self.allowed_roles
+        return self.request.user.has_tagging_module_access()
 
     def handle_no_permission(self):
         if self.request.user.is_authenticated:

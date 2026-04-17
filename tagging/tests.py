@@ -59,3 +59,13 @@ class TaggingDashboardTests(TestCase):
         response = self.client.get(reverse("tagging:dashboard"))
 
         self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+    def test_employee_with_tagging_toggle_can_open_tagging_dashboard(self):
+        self.employee.can_access_tagging = True
+        self.employee.save(update_fields=["can_access_tagging"])
+
+        self.client.force_login(self.employee)
+        response = self.client.get(reverse("tagging:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Employee Tagging")

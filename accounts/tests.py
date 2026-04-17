@@ -2,9 +2,11 @@ from datetime import date, datetime, time
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from attendance.models import AttendanceSession
+from attendance.services import get_employee_tagging_state
 from employees.models import Department, EmployeeProfile, Team
 from tagging.models import TagLog, TagType
 
@@ -168,6 +170,75 @@ class EmployeeDashboardTaggingTests(TestCase):
         self.assertFalse(response.context["time_in_button"]["enabled"])
         self.assertTrue(response.context["cooldown_active"])
 
+    def test_employee_dashboard_allows_only_active_tag_end_when_auxiliary_tag_is_open(self):
+        self.client.login(username="employee-dashboard", password="password123")
+        work_date = timezone.localdate()
+        now = timezone.now()
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="TIME_IN"),
+            work_date=work_date,
+            timestamp=now - timezone.timedelta(hours=1),
+            work_mode="WFH",
+            source="WEB",
+        )
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="BIO_OUT"),
+            work_date=work_date,
+            timestamp=now - timezone.timedelta(minutes=5),
+            work_mode="WFH",
+            source="WEB",
+        )
+        AttendanceSession.objects.create(
+            employee=self.employee,
+            work_date=work_date,
+            first_time_in=now - timezone.timedelta(hours=1),
+            current_status=AttendanceSession.Status.BIO,
+            work_mode="WFH",
+        )
+
+        response = self.client.get("/dashboard/employee/")
+        controls = {item["key"]: item for item in response.context["tag_controls"]}
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["time_out_button"]["enabled"])
+        self.assertFalse(controls["lunch"]["enabled"])
+        self.assertFalse(controls["break"]["enabled"])
+        self.assertTrue(controls["bio"]["enabled"])
+        self.assertEqual(controls["bio"]["button_label"], "Bio End")
+
+    def test_tagging_state_blocks_other_auxiliary_tags_while_one_is_active(self):
+        work_date = timezone.localdate()
+        now = timezone.now()
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="TIME_IN"),
+            work_date=work_date,
+            timestamp=now - timezone.timedelta(hours=1),
+            work_mode="WFH",
+            source="WEB",
+        )
+        TagLog.objects.create(
+            employee=self.employee,
+            tag_type=TagType.objects.get(code="LUNCH_OUT"),
+            work_date=work_date,
+            timestamp=now - timezone.timedelta(minutes=10),
+            work_mode="WFH",
+            source="WEB",
+        )
+        AttendanceSession.objects.create(
+            employee=self.employee,
+            work_date=work_date,
+            first_time_in=now - timezone.timedelta(hours=1),
+            current_status=AttendanceSession.Status.LUNCH,
+            work_mode="WFH",
+        )
+
+        state = get_employee_tagging_state(self.employee, work_date)
+
+        self.assertEqual(state["valid_codes"], ["LUNCH_IN"])
+
     def _seed_tag_types(self):
         tag_types = [
             ("TIME_IN", "Time In", TagType.Category.SHIFT, TagType.Direction.IN),
@@ -187,3 +258,77 @@ class EmployeeDashboardTaggingTests(TestCase):
                 direction=direction,
                 sort_order=index,
             )
+
+
+class ModuleAccessManagementTests(TestCase):
+    def setUp(self):
+        self.super_admin = User.objects.create_user(
+            username="module-super",
+            password="password123",
+            email="module-super@example.com",
+            role=User.Role.SUPER_ADMIN,
+        )
+        self.user = User.objects.create_user(
+            username="module-user",
+            password="password123",
+            email="module-user@example.com",
+            role=User.Role.EMPLOYEE,
+        )
+
+    def test_super_admin_can_update_user_module_access(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("accounts:module-access"),
+            {
+                "user_id": self.user.id,
+                "can_access_tagging": "on",
+                "can_access_inventory": "on",
+            },
+            follow=True,
+        )
+        self.user.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.user.can_access_tagging)
+        self.assertTrue(self.user.can_access_inventory)
+        self.assertContains(response, "Module access updated")
+
+    def test_admin_with_tagging_toggle_can_open_employee_tagging_dashboard(self):
+        admin_user = User.objects.create_user(
+            username="tag-admin",
+            password="password123",
+            email="tag-admin@example.com",
+            role=User.Role.ADMIN,
+            can_access_tagging=True,
+        )
+        EmployeeProfile.objects.create(
+            user=admin_user,
+            employee_code="TAG001",
+            schedule_start_time=time(8, 0),
+            schedule_end_time=time(17, 0),
+            default_work_mode="ONSITE",
+        )
+        tag_types = [
+            ("TIME_IN", "Time In", TagType.Category.SHIFT, TagType.Direction.IN),
+            ("TIME_OUT", "Time Out", TagType.Category.SHIFT, TagType.Direction.OUT),
+            ("LUNCH_OUT", "Lunch Out", TagType.Category.LUNCH, TagType.Direction.OUT),
+            ("LUNCH_IN", "Lunch In", TagType.Category.LUNCH, TagType.Direction.IN),
+            ("BREAK_OUT", "Break Out", TagType.Category.BREAK, TagType.Direction.OUT),
+            ("BREAK_IN", "Break In", TagType.Category.BREAK, TagType.Direction.IN),
+            ("BIO_OUT", "Bio Out", TagType.Category.BIO, TagType.Direction.OUT),
+            ("BIO_IN", "Bio In", TagType.Category.BIO, TagType.Direction.IN),
+        ]
+        for index, (code, name, category, direction) in enumerate(tag_types, start=1):
+            TagType.objects.create(
+                code=code,
+                name=name,
+                category=category,
+                direction=direction,
+                sort_order=index,
+            )
+
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse("accounts:employee-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tagging Panel")

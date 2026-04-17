@@ -14,7 +14,25 @@ class RoleAdmin(admin.ModelAdmin):
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Access", {"fields": ("role", "role_record")}),
+        ("Access", {"fields": ("role", "role_record", "can_access_tagging", "can_access_inventory")}),
     )
-    list_display = ("username", "email", "first_name", "last_name", "role", "role_record", "is_staff")
-    list_filter = ("role", "role_record", "is_staff", "is_superuser", "is_active")
+    list_display = (
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "role",
+        "role_record",
+        "can_access_tagging",
+        "can_access_inventory",
+        "is_staff",
+    )
+    list_filter = (
+        "role",
+        "role_record",
+        "can_access_tagging",
+        "can_access_inventory",
+        "is_staff",
+        "is_superuser",
+        "is_active",
+    )

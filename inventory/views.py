@@ -448,7 +448,7 @@ class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
         return response
 
     def test_func(self):
-        return self.request.user.role in self.allowed_roles
+        return self.request.user.has_inventory_module_access()
 
     def handle_no_permission(self):
         if self.request.user.is_authenticated:
@@ -458,6 +458,9 @@ class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class SuperAdminInventoryAccessMixin(InventoryAccessMixin):
     allowed_roles = (User.Role.SUPER_ADMIN,)
+
+    def test_func(self):
+        return self.request.user.role == User.Role.SUPER_ADMIN
 
 
 class InventoryFeedbackMixin:

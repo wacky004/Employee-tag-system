@@ -4,6 +4,7 @@ from .views import (
     DashboardRedirectView,
     EmployeeDashboardView,
     ManagerDashboardView,
+    ModuleAccessManagementView,
     RoleBasedLoginView,
     SuperAdminDashboardView,
 )
@@ -17,4 +18,5 @@ urlpatterns = [
     path("dashboard/employee/", EmployeeDashboardView.as_view(), name="employee-dashboard"),
     path("dashboard/manager/", ManagerDashboardView.as_view(), name="manager-dashboard"),
     path("dashboard/super-admin/", SuperAdminDashboardView.as_view(), name="super-admin-dashboard"),
+    path("dashboard/super-admin/module-access/", ModuleAccessManagementView.as_view(), name="module-access"),
 ]
