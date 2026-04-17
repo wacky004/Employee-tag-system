@@ -62,6 +62,21 @@ class InventoryDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_limited_super_admin_without_inventory_access_is_redirected(self):
+        user = User.objects.create_user(
+            username="limitedinventory",
+            email="limitedinventory@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+            limit_to_enabled_modules=True,
+            can_access_tagging=True,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("inventory:dashboard"))
+
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
     def test_inventory_pages_allow_same_origin_iframe_embedding(self):
         user = User.objects.create_user(
             username="frameinventory",

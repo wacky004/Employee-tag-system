@@ -268,6 +268,14 @@ class ModuleAccessManagementTests(TestCase):
             email="module-super@example.com",
             role=User.Role.SUPER_ADMIN,
         )
+        self.limited_super_admin = User.objects.create_user(
+            username="limited-super",
+            password="password123",
+            email="limited-super@example.com",
+            role=User.Role.SUPER_ADMIN,
+            limit_to_enabled_modules=True,
+            can_access_inventory=True,
+        )
         self.user = User.objects.create_user(
             username="module-user",
             password="password123",
@@ -291,6 +299,7 @@ class ModuleAccessManagementTests(TestCase):
             reverse("accounts:module-access"),
             {
                 "user_id": self.user.id,
+                "limit_to_enabled_modules": "on",
                 "can_access_tagging": "on",
                 "can_access_inventory": "on",
             },
@@ -299,6 +308,7 @@ class ModuleAccessManagementTests(TestCase):
         self.user.refresh_from_db()
 
         self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.user.limit_to_enabled_modules)
         self.assertTrue(self.user.can_access_tagging)
         self.assertTrue(self.user.can_access_inventory)
         self.assertContains(response, "Module access updated")
@@ -335,6 +345,21 @@ class ModuleAccessManagementTests(TestCase):
             response,
             f"{reverse('accounts:module-access')}?q=module-user&role={User.Role.EMPLOYEE}",
         )
+
+    def test_limited_super_admin_cannot_open_module_access_page(self):
+        self.client.force_login(self.limited_super_admin)
+        response = self.client.get(reverse("accounts:module-access"))
+
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
+    def test_super_admin_dashboard_hides_unassigned_modules_for_limited_super_admin(self):
+        self.client.force_login(self.limited_super_admin)
+        response = self.client.get(reverse("accounts:super-admin-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Open Inventory")
+        self.assertNotContains(response, "Open Tagging")
+        self.assertNotContains(response, "Manage Module Access")
 
     def test_admin_with_tagging_toggle_can_open_employee_tagging_dashboard(self):
         admin_user = User.objects.create_user(

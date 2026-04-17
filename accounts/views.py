@@ -331,10 +331,24 @@ class SuperAdminDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/super_admin_dashboard.html"
     allowed_roles = (User.Role.SUPER_ADMIN,)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "can_view_tagging_module": self.request.user.has_tagging_module_access(),
+                "can_view_inventory_module": self.request.user.has_inventory_module_access(),
+                "can_manage_modules": self.request.user.can_manage_module_access(),
+            }
+        )
+        return context
+
 
 class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/module_access.html"
     allowed_roles = (User.Role.SUPER_ADMIN,)
+
+    def test_func(self):
+        return self.request.user.can_manage_module_access()
 
     def post(self, request, *args, **kwargs):
         query = request.POST.get("q", "").strip()
@@ -344,9 +358,10 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
             messages.error(request, "User not found.")
             return redirect(self._build_redirect_url(query, selected_role))
 
+        user.limit_to_enabled_modules = request.POST.get("limit_to_enabled_modules") == "on"
         user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
         user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
-        user.save(update_fields=["can_access_tagging", "can_access_inventory"])
+        user.save(update_fields=["limit_to_enabled_modules", "can_access_tagging", "can_access_inventory"])
         messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
         return redirect(self._build_redirect_url(query, selected_role))
 

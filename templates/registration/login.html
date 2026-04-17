@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Login | Employee Tag System{% endblock %}
+{% block title %}Login | AquiSo{% endblock %}
 
 {% block content %}
 <div class="login-wrap">
     <div class="login-card">
-        <div class="pill">Role-aware sign in</div>
-        <h1>Employee Tag System</h1>
-        <p class="hint">Sign in to continue to your dashboard. Employees go to tagging, managers go to monitoring, and super admins go to system controls.</p>
+        <div class="pill">Multi-vendor platform</div>
+        <h1>AquiSo</h1>
+        <p class="hint">Sign in to continue to your company workspace. Each business only sees the modules that were activated for their account.</p>
         <form method="post">
             {% csrf_token %}
             {{ form.as_p }}

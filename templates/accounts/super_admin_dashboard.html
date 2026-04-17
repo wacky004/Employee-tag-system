@@ -1,20 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Super Admin Dashboard{% endblock %}
+{% block title %}AquiSo | Admin Workspace{% endblock %}
 
 {% block content %}
 <div class="page">
     <div class="shell">
         <div class="topbar">
             <div class="brand">
-                <h1>Super Admin Dashboard</h1>
-                <p>Global controls for settings, rules, users, and reports.</p>
+                <h1>AquiSo Admin Workspace</h1>
+                <p>Open only the modules enabled for this company account and keep unused modules out of sight.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                {% if can_view_tagging_module %}
                 <a href="{% url 'tagging:dashboard' %}" class="button secondary">Tagging</a>
+                {% endif %}
+                {% if can_view_inventory_module %}
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
+                {% endif %}
+                {% if can_manage_modules %}
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
+                {% endif %}
                 <form method="post" action="{% url 'logout' %}" class="button-form">
                     {% csrf_token %}
                     <button type="submit" class="button secondary">Logout</button>
@@ -23,11 +29,12 @@
         </div>
 
         <section class="hero">
-            <h2>Control center for the full system</h2>
-            <p>Super admins are redirected here so they can manage company-wide rules, users, reports, and attendance settings from one place.</p>
+            <h2>Company modules in one place</h2>
+            <p>AquiSo is designed for multi-vendor setups, so each business only sees the modules that were activated for them. Full superadmins can manage module access, while limited superadmins only see their assigned modules.</p>
         </section>
 
         <div class="grid">
+            {% if can_view_inventory_module %}
             <div class="card">
                 <h3>Inventory Management</h3>
                 <div class="stat">Module</div>
@@ -37,6 +44,9 @@
                     <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">Inventory Reports</a>
                 </div>
             </div>
+            {% endif %}
+
+            {% if can_view_tagging_module %}
             <div class="card">
                 <h3>Employee Tagging</h3>
                 <div class="stat">Module</div>
@@ -45,14 +55,26 @@
                     <a href="{% url 'tagging:dashboard' %}" class="button">Open Tagging</a>
                 </div>
             </div>
+            {% endif %}
+
+            {% if can_manage_modules %}
             <div class="card">
                 <h3>User Management</h3>
                 <div class="stat">Roles</div>
-                <p>Manage per-user module access for Tagging and Inventory without changing the user’s main role.</p>
+                <p>Manage full-access and limited-access admins, then choose which modules each user can actually see.</p>
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'accounts:module-access' %}" class="button">Manage Module Access</a>
                 </div>
             </div>
+            {% endif %}
+
+            {% if not can_view_inventory_module and not can_view_tagging_module and not can_manage_modules %}
+            <div class="card">
+                <h3>No Modules Enabled</h3>
+                <div class="stat">Waiting</div>
+                <p>No modules are assigned to this account yet. Ask the full superadmin or the development team to activate the modules this company needs.</p>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

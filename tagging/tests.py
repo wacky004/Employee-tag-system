@@ -69,3 +69,18 @@ class TaggingDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Employee Tagging")
+
+    def test_limited_super_admin_without_tagging_access_is_redirected(self):
+        limited_super_admin = User.objects.create_user(
+            username="limitedtagging",
+            email="limitedtagging@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+            limit_to_enabled_modules=True,
+            can_access_inventory=True,
+        )
+
+        self.client.force_login(limited_super_admin)
+        response = self.client.get(reverse("tagging:dashboard"))
+
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))

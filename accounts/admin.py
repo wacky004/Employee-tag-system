@@ -14,7 +14,18 @@ class RoleAdmin(admin.ModelAdmin):
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Access", {"fields": ("role", "role_record", "can_access_tagging", "can_access_inventory")}),
+        (
+            "Access",
+            {
+                "fields": (
+                    "role",
+                    "role_record",
+                    "limit_to_enabled_modules",
+                    "can_access_tagging",
+                    "can_access_inventory",
+                )
+            },
+        ),
     )
     list_display = (
         "username",
@@ -23,6 +34,7 @@ class UserAdmin(BaseUserAdmin):
         "last_name",
         "role",
         "role_record",
+        "limit_to_enabled_modules",
         "can_access_tagging",
         "can_access_inventory",
         "is_staff",
@@ -30,6 +42,7 @@ class UserAdmin(BaseUserAdmin):
     list_filter = (
         "role",
         "role_record",
+        "limit_to_enabled_modules",
         "can_access_tagging",
         "can_access_inventory",
         "is_staff",

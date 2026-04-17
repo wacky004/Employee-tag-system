@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Module Access</h1>
-                <p>Grant Tagging and Inventory access per user without changing the user’s main role.</p>
+                <p>Choose which modules each user can see. Full superadmins can access everything, while limited users can be restricted to only the enabled modules.</p>
             </div>
             <div class="actions">
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
@@ -53,6 +53,7 @@
                         <tr>
                             <th>User</th>
                             <th>Role</th>
+                            <th>Selected Modules Only</th>
                             <th>Tagging</th>
                             <th>Inventory</th>
                             <th>Save</th>
@@ -75,6 +76,12 @@
                                     <input type="hidden" name="role" value="{{ selected_role }}">
                                 </form>
                                 <label class="checkbox-inline">
+                                    <input type="checkbox" name="limit_to_enabled_modules" form="module-access-form-{{ user_item.id }}" {% if user_item.limit_to_enabled_modules %}checked{% endif %}>
+                                    Restrict
+                                </label>
+                            </td>
+                            <td>
+                                <label class="checkbox-inline">
                                     <input type="checkbox" name="can_access_tagging" form="module-access-form-{{ user_item.id }}" {% if user_item.can_access_tagging %}checked{% endif %}>
                                     Allow
                                 </label>
@@ -91,7 +98,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="muted">No users matched the current search or category filter.</td>
+                            <td colspan="6" class="muted">No users matched the current search or category filter.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

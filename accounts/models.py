@@ -34,6 +34,7 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+    limit_to_enabled_modules = models.BooleanField(default=False)
     can_access_tagging = models.BooleanField(default=False)
     can_access_inventory = models.BooleanField(default=False)
     email = models.EmailField(unique=True)
@@ -44,8 +45,18 @@ class User(AbstractUser):
     def __str__(self):
         return self.get_full_name() or self.username
 
+    def has_full_module_access(self):
+        return self.role == self.Role.SUPER_ADMIN and not self.limit_to_enabled_modules
+
+    def can_manage_module_access(self):
+        return self.has_full_module_access()
+
     def has_tagging_module_access(self):
-        return self.role == self.Role.SUPER_ADMIN or self.can_access_tagging
+        if self.role == self.Role.SUPER_ADMIN:
+            return self.has_full_module_access() or self.can_access_tagging
+        return self.can_access_tagging
 
     def has_inventory_module_access(self):
-        return self.role in {self.Role.SUPER_ADMIN, self.Role.ADMIN} or self.can_access_inventory
+        if self.role == self.Role.SUPER_ADMIN:
+            return self.has_full_module_access() or self.can_access_inventory
+        return self.role == self.Role.ADMIN or self.can_access_inventory
