@@ -119,8 +119,11 @@ class QueueHistoryLog(models.Model):
         COMPLETED = "COMPLETED", "Completed"
         SKIPPED = "SKIPPED", "Skipped"
         CANCELLED = "CANCELLED", "Cancelled"
-        RECALL = "RECALL", "Recall"
+        RECALL = "RECALL", "Recalled"
         REASSIGNED = "REASSIGNED", "Reassigned"
+        MANUAL_EDITED = "MANUAL_EDITED", "Manually Edited"
+        SERVICE_UPDATED = "SERVICE_UPDATED", "Service Updated"
+        COUNTER_UPDATED = "COUNTER_UPDATED", "Counter Updated"
 
     company = models.ForeignKey(
         Company,
@@ -131,6 +134,8 @@ class QueueHistoryLog(models.Model):
         QueueTicket,
         on_delete=models.CASCADE,
         related_name="history_logs",
+        null=True,
+        blank=True,
     )
     service = models.ForeignKey(
         QueueService,
@@ -154,6 +159,11 @@ class QueueHistoryLog(models.Model):
         related_name="queue_history_actions",
     )
     action = models.CharField(max_length=20, choices=Action.choices)
+    status_snapshot = models.CharField(
+        max_length=20,
+        choices=QueueTicket.Status.choices,
+        blank=True,
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -162,7 +172,8 @@ class QueueHistoryLog(models.Model):
         ordering = ["-created_at", "-id"]
 
     def __str__(self):
-        return f"{self.ticket.queue_number} - {self.action}"
+        target_label = self.ticket.queue_number if self.ticket_id else self.service or self.counter or "Queue Event"
+        return f"{target_label} - {self.action}"
 
 
 class QueueDisplayScreen(models.Model):

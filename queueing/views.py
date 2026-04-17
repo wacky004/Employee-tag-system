@@ -52,16 +52,34 @@ class QueueingSetupMixin(QueueingAccessMixin):
         }
 
 
-def _log_queue_action(*, ticket, actor, action, notes="", counter=None, service=None):
+def _log_queue_action(*, actor, action, ticket=None, notes="", counter=None, service=None, company=None, status_snapshot=""):
+    if ticket is not None:
+        company = company or ticket.company
+        service = service or ticket.service
+        if counter is None:
+            counter = ticket.assigned_counter
+        if not status_snapshot:
+            status_snapshot = ticket.status
     QueueHistoryLog.objects.create(
-        company=ticket.company,
+        company=company,
         ticket=ticket,
-        service=service or ticket.service,
-        counter=counter if counter is not None else ticket.assigned_counter,
+        service=service,
+        counter=counter,
         actor=actor,
         action=action,
+        status_snapshot=status_snapshot,
         notes=notes,
     )
+
+
+def _summarize_changes(field_labels, previous_object, current_object):
+    changes = []
+    for field_name, label in field_labels:
+        previous_value = getattr(previous_object, field_name)
+        current_value = getattr(current_object, field_name)
+        if previous_value != current_value:
+            changes.append(f"{label}: {previous_value or '-'} -> {current_value or '-'}")
+    return "; ".join(changes) if changes else "Updated from the queue setup page."
 
 
 class QueueingDashboardView(QueueingAccessMixin, TemplateView):
@@ -91,6 +109,7 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
                 "counter_count": counters.count(),
                 "waiting_ticket_count": tickets.filter(status=QueueTicket.Status.WAITING).count(),
                 "display_screen_count": screens.count(),
+                "history_log_count": QueueHistoryLog.objects.filter(company=company).count() if company else QueueHistoryLog.objects.count(),
                 "active_services": services.filter(is_active=True).order_by("name")[:5],
                 "ticket_generation_services": services.filter(
                     is_active=True,
@@ -158,10 +177,8 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
                 service=locked_service,
                 is_priority=is_priority,
             )
-            QueueHistoryLog.objects.create(
-                company=locked_service.company,
+            _log_queue_action(
                 ticket=ticket,
-                service=locked_service,
                 actor=self.request.user,
                 action=QueueHistoryLog.Action.CREATED,
                 notes="Queue ticket generated from the setup page.",
@@ -425,8 +442,25 @@ class QueueServiceUpdateView(QueueingSetupMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
+        original = QueueService.objects.get(pk=self.get_object().pk)
+        field_labels = [
+            ("name", "Name"),
+            ("code", "Code"),
+            ("max_queue_limit", "Max Queue"),
+            ("current_queue_number", "Current Queue"),
+            ("is_active", "Active"),
+            ("show_in_ticket_generation", "Ticket Generation"),
+        ]
+        response = super().form_valid(form)
+        _log_queue_action(
+            actor=self.request.user,
+            action=QueueHistoryLog.Action.SERVICE_UPDATED,
+            company=self.object.company,
+            service=self.object,
+            notes=_summarize_changes(field_labels, original, self.object),
+        )
         messages.success(self.request, "Queue service updated successfully.")
-        return super().form_valid(form)
+        return response
 
     def form_invalid(self, form):
         messages.error(self.request, "Queue service update failed. Please review the form and try again.")
@@ -451,10 +485,11 @@ class QueueTicketUpdateView(QueueingSetupMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
-        original = self.get_object()
+        original = QueueTicket.objects.get(pk=self.get_object().pk)
         old_service = original.service
         old_counter = original.assigned_counter
         old_status = original.status
+        old_priority = original.is_priority
         if form.cleaned_data["status"] == QueueTicket.Status.CALLED and not form.instance.called_at:
             form.instance.called_at = timezone.now()
         if form.cleaned_data["status"] == QueueTicket.Status.COMPLETED and not form.instance.completed_at:
@@ -484,6 +519,18 @@ class QueueTicketUpdateView(QueueingSetupMixin, UpdateView):
                     action=history_action,
                     notes="Ticket status adjusted manually.",
                 )
+        if (
+            old_service != self.object.service
+            or old_counter != self.object.assigned_counter
+            or old_status != self.object.status
+            or old_priority != self.object.is_priority
+        ):
+            _log_queue_action(
+                ticket=self.object,
+                actor=self.request.user,
+                action=QueueHistoryLog.Action.MANUAL_EDITED,
+                notes="Ticket edited manually from the queue operator panel.",
+            )
 
         messages.success(self.request, "Queue ticket updated successfully.")
         return response
@@ -543,8 +590,23 @@ class QueueCounterUpdateView(QueueingSetupMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
+        original = QueueCounter.objects.get(pk=self.get_object().pk)
+        field_labels = [
+            ("name", "Name"),
+            ("assigned_service", "Assigned Service"),
+            ("is_active", "Active"),
+        ]
+        response = super().form_valid(form)
+        _log_queue_action(
+            actor=self.request.user,
+            action=QueueHistoryLog.Action.COUNTER_UPDATED,
+            company=self.object.company,
+            service=self.object.assigned_service,
+            counter=self.object,
+            notes=_summarize_changes(field_labels, original, self.object),
+        )
         messages.success(self.request, "Queue counter updated successfully.")
-        return super().form_valid(form)
+        return response
 
     def form_invalid(self, form):
         messages.error(self.request, "Queue counter update failed. Please review the form and try again.")
@@ -610,3 +672,52 @@ class QueueDisplayScreenUpdateView(QueueingSetupMixin, UpdateView):
 
     def get_success_url(self):
         return reverse("queueing:display-screen-list")
+
+
+class QueueHistoryListView(QueueingSetupMixin, ListView):
+    model = QueueHistoryLog
+    template_name = "queueing/history_list.html"
+    context_object_name = "history_logs"
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = self._company_queryset(
+            QueueHistoryLog.objects.select_related(
+                "company",
+                "ticket",
+                "service",
+                "counter",
+                "actor",
+            ).order_by("-created_at", "-id")
+        )
+        date_value = self.request.GET.get("date", "").strip()
+        service_id = self.request.GET.get("service", "").strip()
+        status_value = self.request.GET.get("status", "").strip()
+        counter_id = self.request.GET.get("counter", "").strip()
+
+        if date_value:
+            queryset = queryset.filter(created_at__date=date_value)
+        if service_id:
+            queryset = queryset.filter(service_id=service_id)
+        if status_value:
+            queryset = queryset.filter(status_snapshot=status_value)
+        if counter_id:
+            queryset = queryset.filter(counter_id=counter_id)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        service_queryset = self._company_queryset(QueueService.objects.order_by("name", "code"))
+        counter_queryset = self._company_queryset(QueueCounter.objects.order_by("name"))
+        context.update(
+            {
+                "services": service_queryset,
+                "counters": counter_queryset,
+                "status_choices": QueueTicket.Status.choices,
+                "selected_date": self.request.GET.get("date", "").strip(),
+                "selected_service": self.request.GET.get("service", "").strip(),
+                "selected_status": self.request.GET.get("status", "").strip(),
+                "selected_counter": self.request.GET.get("counter", "").strip(),
+            }
+        )
+        return context

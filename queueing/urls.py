@@ -8,6 +8,7 @@ from .views import (
     QueueDisplayScreenListView,
     QueueDisplayScreenUpdateView,
     QueueDisplayScreenView,
+    QueueHistoryListView,
     QueueOperatorPanelView,
     QueueServiceCreateView,
     QueueServiceListView,
@@ -22,6 +23,7 @@ app_name = "queueing"
 
 urlpatterns = [
     path("", QueueingDashboardView.as_view(), name="dashboard"),
+    path("history/", QueueHistoryListView.as_view(), name="history-list"),
     path("operator/", QueueOperatorPanelView.as_view(), name="operator-panel"),
     path("services/", QueueServiceListView.as_view(), name="service-list"),
     path("services/create/", QueueServiceCreateView.as_view(), name="service-create"),

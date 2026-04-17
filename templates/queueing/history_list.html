@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Queue History{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queue History</h1>
+                <p>Track ticket actions and queue setup updates with filters for date, service, status, and counter.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="get">
+                <div class="section-head">
+                    <h3>Filter History</h3>
+                    <div class="actions">
+                        <a href="{% url 'queueing:history-list' %}" class="button ghost">Reset</a>
+                        <button type="submit" class="button">Apply Filters</button>
+                    </div>
+                </div>
+                <div class="filters">
+                    <div class="field">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" name="date" value="{{ selected_date }}">
+                    </div>
+                    <div class="field">
+                        <label for="service">Service</label>
+                        <select id="service" name="service">
+                            <option value="">All services</option>
+                            {% for service in services %}
+                            <option value="{{ service.id }}" {% if selected_service == service.id|stringformat:"s" %}selected{% endif %}>{{ service.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="">All statuses</option>
+                            {% for code, label in status_choices %}
+                            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="counter">Counter</label>
+                        <select id="counter" name="counter">
+                            <option value="">All counters</option>
+                            {% for counter in counters %}
+                            <option value="{{ counter.id }}" {% if selected_counter == counter.id|stringformat:"s" %}selected{% endif %}>{{ counter.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <div class="section-head">
+                <h3>History Log</h3>
+                <span class="badge">{{ page_obj.paginator.count }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Ticket</th>
+                            <th>Service</th>
+                            <th>Counter</th>
+                            <th>Status</th>
+                            <th>Actor</th>
+                            <th>Notes</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in history_logs %}
+                        <tr>
+                            <td>{{ log.get_action_display }}</td>
+                            <td>{% if log.ticket %}{{ log.ticket.queue_number }}{% else %}-{% endif %}</td>
+                            <td>{% if log.service %}{{ log.service.name }}{% else %}-{% endif %}</td>
+                            <td>{% if log.counter %}{{ log.counter.name }}{% else %}-{% endif %}</td>
+                            <td>{% if log.status_snapshot %}{{ log.get_status_snapshot_display }}{% else %}-{% endif %}</td>
+                            <td>{% if log.actor %}{{ log.actor.get_full_name|default:log.actor.username }}{% else %}-{% endif %}</td>
+                            <td>{{ log.notes|default:"-" }}</td>
+                            <td>{{ log.created_at|date:"M j, Y h:i A" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="muted">No queue history matched the selected filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if is_paginated %}
+            <div class="actions" style="margin-top: 16px;">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&date={{ selected_date }}&service={{ selected_service }}&status={{ selected_status }}&counter={{ selected_counter }}" class="button secondary">Previous</a>
+                {% endif %}
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&date={{ selected_date }}&service={{ selected_service }}&status={{ selected_status }}&counter={{ selected_counter }}" class="button secondary">Next</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

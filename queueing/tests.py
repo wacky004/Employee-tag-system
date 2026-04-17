@@ -568,6 +568,119 @@ class QueueingSetupPageTests(TestCase):
         self.assertTrue(
             QueueHistoryLog.objects.filter(ticket=ticket, action=QueueHistoryLog.Action.REASSIGNED).exists()
         )
+        self.assertTrue(
+            QueueHistoryLog.objects.filter(ticket=ticket, action=QueueHistoryLog.Action.MANUAL_EDITED).exists()
+        )
+
+    def test_service_and_counter_updates_create_history_logs(self):
+        self.client.force_login(self.admin)
+
+        service_response = self.client.post(
+            reverse("queueing:service-update", kwargs={"pk": self.service.pk}),
+            {
+                "company": self.company.id,
+                "name": "Enrollment",
+                "code": "R",
+                "description": "Updated name",
+                "is_active": "on",
+                "max_queue_limit": 80,
+                "current_queue_number": 2,
+                "allow_priority": "on",
+                "show_in_ticket_generation": "on",
+            },
+            follow=True,
+        )
+        counter_response = self.client.post(
+            reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}),
+            {
+                "company": self.company.id,
+                "name": "Counter A",
+                "assigned_service": self.service.id,
+                "is_active": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(service_response.status_code, 200)
+        self.assertEqual(counter_response.status_code, 200)
+        self.assertTrue(
+            QueueHistoryLog.objects.filter(
+                company=self.company,
+                action=QueueHistoryLog.Action.SERVICE_UPDATED,
+                service=self.service,
+            ).exists()
+        )
+        self.assertTrue(
+            QueueHistoryLog.objects.filter(
+                company=self.company,
+                action=QueueHistoryLog.Action.COUNTER_UPDATED,
+                counter=self.counter,
+            ).exists()
+        )
+
+    def test_history_page_filters_by_date_service_status_and_counter(self):
+        other_service = QueueService.objects.create(
+            company=self.company,
+            name="Cashier",
+            code="C",
+            max_queue_limit=40,
+        )
+        other_counter = QueueCounter.objects.create(
+            company=self.company,
+            name="Counter 2",
+            assigned_service=other_service,
+        )
+        ticket_one = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R010",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.CALLED,
+            called_at=timezone.now(),
+        )
+        ticket_two = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="C001",
+            service=other_service,
+            assigned_counter=other_counter,
+            status=QueueTicket.Status.SKIPPED,
+        )
+        log_one = QueueHistoryLog.objects.create(
+            company=self.company,
+            ticket=ticket_one,
+            service=self.service,
+            counter=self.counter,
+            actor=self.admin,
+            action=QueueHistoryLog.Action.CALLED,
+            status_snapshot=QueueTicket.Status.CALLED,
+            notes="Called from operator panel.",
+        )
+        QueueHistoryLog.objects.create(
+            company=self.company,
+            ticket=ticket_two,
+            service=other_service,
+            counter=other_counter,
+            actor=self.admin,
+            action=QueueHistoryLog.Action.SKIPPED,
+            status_snapshot=QueueTicket.Status.SKIPPED,
+            notes="Skipped in queue.",
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("queueing:history-list"),
+            {
+                "date": timezone.localdate().isoformat(),
+                "service": str(self.service.id),
+                "status": QueueTicket.Status.CALLED,
+                "counter": str(self.counter.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, log_one.ticket.queue_number)
+        self.assertNotContains(response, ticket_two.queue_number)
+        self.assertContains(response, "Called")
 
 
 class QueueingModelTests(TestCase):
@@ -626,6 +739,7 @@ class QueueingModelTests(TestCase):
             counter=self.counter,
             actor=self.super_admin,
             action=QueueHistoryLog.Action.CREATED,
+            status_snapshot=QueueTicket.Status.WAITING,
             notes="Ticket created from front desk.",
         )
 
@@ -638,6 +752,7 @@ class QueueingModelTests(TestCase):
         self.assertEqual(self.ticket.status, QueueTicket.Status.WAITING)
         self.assertTrue(self.ticket.is_priority)
         self.assertEqual(history.actor, self.super_admin)
+        self.assertEqual(history.status_snapshot, QueueTicket.Status.WAITING)
         self.assertEqual(screen.services.first(), self.service)
         self.assertEqual(screen.slug, "main-lobby")
         self.assertEqual(screen.refresh_interval_seconds, 20)
