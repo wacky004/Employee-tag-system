@@ -19,28 +19,37 @@ REPORT_CHOICES = {
 }
 
 
-def build_report_dataset(filters):
+def build_report_dataset(filters, company=None):
     report_type = filters["report_type"]
     if report_type == "daily":
-        return _daily_report(filters)
+        return _daily_report(filters, company=company)
     if report_type == "weekly":
-        return _range_summary_report(filters, "Weekly Summary")
+        return _range_summary_report(filters, "Weekly Summary", company=company)
     if report_type == "monthly":
-        return _range_summary_report(filters, "Monthly Summary")
+        return _range_summary_report(filters, "Monthly Summary", company=company)
     if report_type == "overbreak":
-        return _overbreak_report(filters)
+        return _overbreak_report(filters, company=company)
     if report_type == "missed":
-        return _missed_logs_report(filters)
-    return _late_undertime_report(filters)
+        return _missed_logs_report(filters, company=company)
+    return _late_undertime_report(filters, company=company)
 
 
-def get_filter_options():
+def get_filter_options(company=None):
+    teams = Team.objects.select_related("department").order_by("name")
+    departments = Department.objects.order_by("name")
+    employees = EmployeeProfile.objects.select_related("user").order_by(
+        "user__first_name", "user__last_name", "employee_code"
+    )
+    if company is not None:
+        teams = teams.filter(members__user__company=company).distinct()
+        departments = departments.filter(
+            Q(employees__user__company=company) | Q(teams__members__user__company=company)
+        ).distinct()
+        employees = employees.filter(user__company=company)
     return {
-        "teams": Team.objects.select_related("department").order_by("name"),
-        "departments": Department.objects.order_by("name"),
-        "employees": EmployeeProfile.objects.select_related("user").order_by(
-            "user__first_name", "user__last_name", "employee_code"
-        ),
+        "teams": teams,
+        "departments": departments,
+        "employees": employees,
         "report_choices": REPORT_CHOICES,
     }
 
@@ -83,7 +92,7 @@ def export_dataset_to_csv(dataset, response):
         writer.writerow([row.get(key, "") for key in dataset["column_keys"]])
 
 
-def _base_sessions(filters):
+def _base_sessions(filters, company=None):
     sessions = AttendanceSession.objects.select_related(
         "employee",
         "employee__employee_profile",
@@ -91,6 +100,8 @@ def _base_sessions(filters):
         "employee__employee_profile__department",
         "employee__employee_profile__team__department",
     ).filter(work_date__range=(filters["start_date"], filters["end_date"]))
+    if company is not None:
+        sessions = sessions.filter(employee__company=company)
 
     team = filters["team"]
     department = filters["department"]
@@ -111,8 +122,8 @@ def _base_sessions(filters):
     return sessions.distinct()
 
 
-def _daily_report(filters):
-    sessions = _base_sessions(filters).filter(work_date=filters["date"]).order_by(
+def _daily_report(filters, company=None):
+    sessions = _base_sessions(filters, company=company).filter(work_date=filters["date"]).order_by(
         "employee__first_name", "employee__last_name"
     )
     rows = [_session_row(session) for session in sessions]
@@ -159,8 +170,8 @@ def _daily_report(filters):
     }
 
 
-def _range_summary_report(filters, title):
-    sessions = _base_sessions(filters)
+def _range_summary_report(filters, title, company=None):
+    sessions = _base_sessions(filters, company=company)
     grouped = {}
     for session in sessions.order_by("employee__first_name", "employee__last_name", "work_date"):
         key = session.employee_id
@@ -233,8 +244,8 @@ def _range_summary_report(filters, title):
     }
 
 
-def _overbreak_report(filters):
-    sessions = _base_sessions(filters)
+def _overbreak_report(filters, company=None):
+    sessions = _base_sessions(filters, company=company)
     overbreaks = OverbreakRecord.objects.select_related(
         "employee",
         "attendance_session",
@@ -297,8 +308,8 @@ def _overbreak_report(filters):
     }
 
 
-def _missed_logs_report(filters):
-    sessions = _base_sessions(filters).filter(
+def _missed_logs_report(filters, company=None):
+    sessions = _base_sessions(filters, company=company).filter(
         has_incomplete_records=True
     ).order_by("work_date", "employee__first_name", "employee__last_name")
     rows = []
@@ -342,8 +353,8 @@ def _missed_logs_report(filters):
     }
 
 
-def _late_undertime_report(filters):
-    sessions = _base_sessions(filters)
+def _late_undertime_report(filters, company=None):
+    sessions = _base_sessions(filters, company=company)
     required_work_minutes = _required_work_minutes()
     rows = []
     for session in sessions.order_by("work_date", "employee__first_name", "employee__last_name"):

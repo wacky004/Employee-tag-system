@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from .models import Company
 from attendance.models import AttendanceSession
 from attendance.services import get_employee_tagging_state
 from employees.models import Department, EmployeeProfile, Team
@@ -262,6 +263,12 @@ class EmployeeDashboardTaggingTests(TestCase):
 
 class ModuleAccessManagementTests(TestCase):
     def setUp(self):
+        self.company = Company.objects.create(
+            name="Northstar Logistics",
+            code="NORTHSTAR",
+            can_use_tagging=True,
+            can_use_inventory=True,
+        )
         self.super_admin = User.objects.create_user(
             username="module-super",
             password="password123",
@@ -273,6 +280,7 @@ class ModuleAccessManagementTests(TestCase):
             password="password123",
             email="limited-super@example.com",
             role=User.Role.SUPER_ADMIN,
+            company=self.company,
             limit_to_enabled_modules=True,
             can_access_inventory=True,
         )
@@ -281,6 +289,7 @@ class ModuleAccessManagementTests(TestCase):
             password="password123",
             email="module-user@example.com",
             role=User.Role.EMPLOYEE,
+            company=self.company,
             first_name="Module",
             last_name="User",
         )
@@ -289,6 +298,7 @@ class ModuleAccessManagementTests(TestCase):
             password="password123",
             email="module-admin@example.com",
             role=User.Role.ADMIN,
+            company=self.company,
             first_name="Admin",
             last_name="Viewer",
         )
@@ -299,6 +309,7 @@ class ModuleAccessManagementTests(TestCase):
             reverse("accounts:module-access"),
             {
                 "user_id": self.user.id,
+                "company": self.company.id,
                 "limit_to_enabled_modules": "on",
                 "can_access_tagging": "on",
                 "can_access_inventory": "on",
@@ -308,6 +319,7 @@ class ModuleAccessManagementTests(TestCase):
         self.user.refresh_from_db()
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.user.company, self.company)
         self.assertTrue(self.user.limit_to_enabled_modules)
         self.assertTrue(self.user.can_access_tagging)
         self.assertTrue(self.user.can_access_inventory)
@@ -367,6 +379,7 @@ class ModuleAccessManagementTests(TestCase):
             password="password123",
             email="tag-admin@example.com",
             role=User.Role.ADMIN,
+            company=self.company,
             can_access_tagging=True,
         )
         EmployeeProfile.objects.create(
@@ -400,3 +413,111 @@ class ModuleAccessManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tagging Panel")
+
+
+class OrganizationLoginTests(TestCase):
+    def setUp(self):
+        self.company = Company.objects.create(
+            name="Acme Distribution",
+            code="ACME",
+            can_use_tagging=True,
+            can_use_inventory=False,
+        )
+        self.company_user = User.objects.create_user(
+            username="acme-admin",
+            password="password123",
+            email="acme-admin@example.com",
+            role=User.Role.ADMIN,
+            company=self.company,
+        )
+        self.platform_super_admin = User.objects.create_user(
+            username="platform-root",
+            password="password123",
+            email="platform-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+        )
+
+    def test_company_user_can_log_in_with_organization_code(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "organization": "ACME",
+                "username": "acme-admin",
+                "password": "password123",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+    def test_company_user_cannot_log_in_with_wrong_organization(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "organization": "OTHERCO",
+                "username": "acme-admin",
+                "password": "password123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "organization does not match this account")
+
+    def test_platform_super_admin_can_log_in_with_aquiso_organization(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "organization": "AquiSo",
+                "username": "platform-root",
+                "password": "password123",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
+
+class CompanyManagementTests(TestCase):
+    def setUp(self):
+        self.platform_super_admin = User.objects.create_user(
+            username="company-root",
+            password="password123",
+            email="company-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+        )
+        company = Company.objects.create(name="Delta Works", code="DELTA")
+        self.limited_super_admin = User.objects.create_user(
+            username="company-limited",
+            password="password123",
+            email="company-limited@example.com",
+            role=User.Role.SUPER_ADMIN,
+            company=company,
+            limit_to_enabled_modules=True,
+            can_access_inventory=True,
+        )
+
+    def test_platform_super_admin_can_create_company(self):
+        self.client.force_login(self.platform_super_admin)
+        response = self.client.post(
+            reverse("accounts:company-management"),
+            {
+                "name": "Blue Harbor",
+                "code": "BLUEHARBOR",
+                "is_active": "on",
+                "can_use_tagging": "on",
+                "can_use_inventory": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Company.objects.filter(code="BLUEHARBOR", name="Blue Harbor").exists())
+        self.assertContains(response, "Organization created successfully")
+
+    def test_limited_super_admin_cannot_access_company_management(self):
+        self.client.force_login(self.limited_super_admin)
+        response = self.client.get(reverse("accounts:company-management"))
+
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))

@@ -53,6 +53,7 @@
                         <tr>
                             <th>User</th>
                             <th>Role</th>
+                            <th>Organization</th>
                             <th>Selected Modules Only</th>
                             <th>Tagging</th>
                             <th>Inventory</th>
@@ -68,6 +69,14 @@
                                 <div class="muted">@{{ user_item.username }}</div>
                             </td>
                             <td>{{ user_item.get_role_display }}</td>
+                            <td>
+                                <select name="company" form="module-access-form-{{ user_item.id }}">
+                                    <option value="">Platform / Unassigned</option>
+                                    {% for company in companies %}
+                                    <option value="{{ company.id }}" {% if user_item.company_id == company.id %}selected{% endif %}>{{ company.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
                             <td>
                                 <form method="post" id="module-access-form-{{ user_item.id }}">
                                     {% csrf_token %}
@@ -98,7 +107,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="muted">No users matched the current search or category filter.</td>
+                            <td colspan="7" class="muted">No users matched the current search or category filter.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

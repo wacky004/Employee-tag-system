@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    CompanyManagementView,
     DashboardRedirectView,
     EmployeeDashboardView,
     ManagerDashboardView,
@@ -18,5 +19,6 @@ urlpatterns = [
     path("dashboard/employee/", EmployeeDashboardView.as_view(), name="employee-dashboard"),
     path("dashboard/manager/", ManagerDashboardView.as_view(), name="manager-dashboard"),
     path("dashboard/super-admin/", SuperAdminDashboardView.as_view(), name="super-admin-dashboard"),
+    path("dashboard/super-admin/organizations/", CompanyManagementView.as_view(), name="company-management"),
     path("dashboard/super-admin/module-access/", ModuleAccessManagementView.as_view(), name="module-access"),
 ]

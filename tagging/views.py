@@ -36,6 +36,8 @@ class TaggingDashboardView(TaggingAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         work_date = timezone.localdate()
         today_logs = TagLog.objects.select_related("employee", "tag_type").filter(work_date=work_date)
+        if self.request.user.company_id:
+            today_logs = today_logs.filter(employee__company=self.request.user.company)
         summary_rows = (
             today_logs.values("tag_type__name")
             .annotate(total=Count("id"))

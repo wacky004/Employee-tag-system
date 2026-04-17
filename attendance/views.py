@@ -81,7 +81,10 @@ class CorrectionReviewListView(RoleRequiredMixin, TemplateView):
     allowed_roles = (User.Role.ADMIN, User.Role.SUPER_ADMIN)
 
     def post(self, request, *args, **kwargs):
-        correction = get_object_or_404(CorrectionRequest, pk=request.POST.get("correction_id"))
+        corrections = CorrectionRequest.objects.all()
+        if request.user.company_id:
+            corrections = corrections.filter(employee__company=request.user.company)
+        correction = get_object_or_404(corrections, pk=request.POST.get("correction_id"))
         form = CorrectionReviewForm(request.POST)
         if not form.is_valid():
             messages.error(request, "Invalid review submission.")
@@ -125,12 +128,17 @@ class CorrectionReviewListView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["review_form"] = CorrectionReviewForm()
-        context["pending_requests"] = CorrectionRequest.objects.filter(
+        pending_requests = CorrectionRequest.objects.filter(
             status=CorrectionRequest.Status.PENDING
         ).select_related("employee", "requested_tag_type", "attendance_session")
-        context["reviewed_requests"] = CorrectionRequest.objects.exclude(
+        reviewed_requests = CorrectionRequest.objects.exclude(
             status=CorrectionRequest.Status.PENDING
         ).select_related("employee", "requested_tag_type", "reviewed_by", "applied_tag_log")[:20]
+        if self.request.user.company_id:
+            pending_requests = pending_requests.filter(employee__company=self.request.user.company)
+            reviewed_requests = reviewed_requests.filter(employee__company=self.request.user.company)
+        context["pending_requests"] = pending_requests
+        context["reviewed_requests"] = reviewed_requests[:20]
         return context
 
     def _apply_correction(self, correction, actor, resolution_notes):

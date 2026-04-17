@@ -17,7 +17,8 @@ class ReportCenterView(RoleRequiredMixin, TemplateView):
 
     def get(self, request, *args, **kwargs):
         filters = normalize_filters(request.GET)
-        dataset = build_report_dataset(filters)
+        company = request.user.company if request.user.company_id else None
+        dataset = build_report_dataset(filters, company=company)
         export_format = request.GET.get("export", "html")
 
         if export_format == "csv":
@@ -29,8 +30,9 @@ class ReportCenterView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         filters = normalize_filters(self.request.GET)
-        dataset = build_report_dataset(filters)
-        context.update(get_filter_options())
+        company = self.request.user.company if self.request.user.company_id else None
+        dataset = build_report_dataset(filters, company=company)
+        context.update(get_filter_options(company=company))
         context.update(
             {
                 "dataset": dataset,

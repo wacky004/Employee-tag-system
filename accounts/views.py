@@ -12,6 +12,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import TemplateView, View
 
+from .forms import CompanyForm, OrganizationLoginForm
+from .models import Company
 from attendance.models import AttendanceSession
 from attendance.services import create_employee_tag, get_current_status_label, get_employee_tagging_state
 from employees.models import Department, EmployeeProfile, Team
@@ -30,6 +32,7 @@ def get_dashboard_url(user):
 
 class RoleBasedLoginView(LoginView):
     template_name = "registration/login.html"
+    form_class = OrganizationLoginForm
     redirect_authenticated_user = True
 
     def get_success_url(self):
@@ -57,7 +60,7 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/employee_dashboard.html"
 
     def test_func(self):
-        return self.request.user.role == User.Role.EMPLOYEE or self.request.user.has_tagging_module_access()
+        return self.request.user.has_tagging_module_access()
 
     TAG_BUTTONS = (
         ("TIME_IN", "Time In"),
@@ -178,6 +181,8 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
             .filter(is_active=True, user__is_active=True)
             .order_by("team__name", "user__first_name", "user__last_name", "employee_code")
         )
+        if self.request.user.company_id:
+            profiles = profiles.filter(user__company=self.request.user.company)
         rows = []
         for profile in profiles:
             rows.append(
@@ -210,6 +215,8 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
             .filter(user__role=User.Role.EMPLOYEE, is_active=True, user__is_active=True)
             .order_by("user__first_name", "user__last_name", "employee_code")
         )
+        if self.request.user.company_id:
+            profiles = profiles.filter(user__company=self.request.user.company)
 
         if selected_team:
             profiles = profiles.filter(team_id=selected_team)
@@ -244,8 +251,8 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
                 "selected_department": selected_department,
                 "selected_employee": selected_employee,
                 "selected_work_mode": selected_work_mode,
-                "teams": Team.objects.select_related("department").order_by("name"),
-                "departments": Department.objects.order_by("name"),
+                "teams": self._company_teams(),
+                "departments": self._company_departments(),
                 "employees": profile_list,
                 "currently_logged_in": [row for row in employee_rows if row["bucket"] == "working"],
                 "on_lunch": [row for row in employee_rows if row["bucket"] == "lunch"],
@@ -326,6 +333,21 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
         }
         return labels.get(bucket, "Unknown")
 
+    def _company_teams(self):
+        teams = Team.objects.select_related("department").order_by("name")
+        if self.request.user.company_id:
+            teams = teams.filter(members__user__company=self.request.user.company).distinct()
+        return teams
+
+    def _company_departments(self):
+        departments = Department.objects.order_by("name")
+        if self.request.user.company_id:
+            departments = departments.filter(
+                Q(employees__user__company=self.request.user.company)
+                | Q(teams__members__user__company=self.request.user.company)
+            ).distinct()
+        return departments
+
 
 class SuperAdminDashboardView(RoleRequiredMixin, TemplateView):
     template_name = "accounts/super_admin_dashboard.html"
@@ -338,6 +360,35 @@ class SuperAdminDashboardView(RoleRequiredMixin, TemplateView):
                 "can_view_tagging_module": self.request.user.has_tagging_module_access(),
                 "can_view_inventory_module": self.request.user.has_inventory_module_access(),
                 "can_manage_modules": self.request.user.can_manage_module_access(),
+                "can_manage_companies": self.request.user.can_manage_companies(),
+                "organization_name": self.request.user.company.name if self.request.user.company_id else "AquiSo Platform",
+            }
+        )
+        return context
+
+
+class CompanyManagementView(RoleRequiredMixin, TemplateView):
+    template_name = "accounts/company_management.html"
+    allowed_roles = (User.Role.SUPER_ADMIN,)
+
+    def test_func(self):
+        return self.request.user.can_manage_companies()
+
+    def post(self, request, *args, **kwargs):
+        form = CompanyForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Organization created successfully.")
+            return redirect("accounts:company-management")
+        messages.error(request, "Organization creation failed. Please review the form and try again.")
+        return self.render_to_response(self.get_context_data(company_form=form))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "company_form": kwargs.get("company_form") or CompanyForm(),
+                "companies": Company.objects.order_by("name"),
             }
         )
         return context
@@ -359,9 +410,11 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
             return redirect(self._build_redirect_url(query, selected_role))
 
         user.limit_to_enabled_modules = request.POST.get("limit_to_enabled_modules") == "on"
+        company_id = request.POST.get("company", "").strip()
+        user.company = Company.objects.filter(pk=company_id).first() if company_id else None
         user.can_access_tagging = request.POST.get("can_access_tagging") == "on"
         user.can_access_inventory = request.POST.get("can_access_inventory") == "on"
-        user.save(update_fields=["limit_to_enabled_modules", "can_access_tagging", "can_access_inventory"])
+        user.save(update_fields=["company", "limit_to_enabled_modules", "can_access_tagging", "can_access_inventory"])
         messages.success(request, f"Module access updated for {user.get_full_name() or user.username}.")
         return redirect(self._build_redirect_url(query, selected_role))
 
@@ -387,6 +440,7 @@ class ModuleAccessManagementView(RoleRequiredMixin, TemplateView):
                 "query": query,
                 "selected_role": selected_role,
                 "role_choices": User.Role.choices,
+                "companies": Company.objects.order_by("name"),
             }
         )
         return context
