@@ -442,6 +442,11 @@ def _return_all_employee_equipment(employee, returned_at, actor=None):
 class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles = (User.Role.SUPER_ADMIN, User.Role.ADMIN)
 
+    def dispatch(self, request, *args, **kwargs):
+        response = super().dispatch(request, *args, **kwargs)
+        response["X-Frame-Options"] = "SAMEORIGIN"
+        return response
+
     def test_func(self):
         return self.request.user.role in self.allowed_roles
 
