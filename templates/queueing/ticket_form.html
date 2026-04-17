@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Queue Ticket{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Generate Queue Ticket</h1>
+                <p>Create a new queue ticket for an active service that is enabled for ticket generation.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:service-list' %}" class="button secondary">Queue Services</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Ticket Input</h3>
+                <p>If a service already reached its configured limit, the system will block ticket creation and show a clear warning.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <div class="actions">
+                        <button type="submit" class="button">Generate Ticket</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Queue Rules</h3>
+                <div class="stat">Validation</div>
+                <p>Only services that are active and marked to appear in ticket generation are shown here.</p>
+                <p>If the limit is reached, the message will be:</p>
+                <p><strong>Maximum queue limit reached for this service</strong></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

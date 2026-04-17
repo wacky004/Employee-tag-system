@@ -17,6 +17,7 @@ class QueueService(models.Model):
     max_queue_limit = models.PositiveIntegerField(default=100)
     current_queue_number = models.PositiveIntegerField(default=0)
     allow_priority = models.BooleanField(default=False)
+    show_in_ticket_generation = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

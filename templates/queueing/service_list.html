@@ -30,6 +30,7 @@
                             <th>Max Queue</th>
                             <th>Current Queue</th>
                             <th>Priority</th>
+                            <th>Ticket Generation</th>
                             <th>Status</th>
                             <th>Company</th>
                             <th>Actions</th>
@@ -46,13 +47,14 @@
                             <td>{{ service.max_queue_limit }}</td>
                             <td>{{ service.current_queue_number }}</td>
                             <td>{% if service.allow_priority %}Allowed{% else %}Disabled{% endif %}</td>
+                            <td>{% if service.show_in_ticket_generation %}Visible{% else %}Hidden{% endif %}</td>
                             <td>{% if service.is_active %}Active{% else %}Inactive{% endif %}</td>
                             <td>{{ service.company.name }}</td>
                             <td><a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a></td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="8" class="muted">No queue services have been created yet.</td>
+                            <td colspan="9" class="muted">No queue services have been created yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

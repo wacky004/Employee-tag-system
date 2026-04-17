@@ -48,7 +48,7 @@
             <div class="card">
                 <h3>Queue Services</h3>
                 <div class="stat">Setup</div>
-                <p>Create and edit queue services like Registrar, Cashier, and Pharmacy, including their service code prefixes and max queue limits.</p>
+                <p>Create and edit queue services like Registrar, Cashier, and Pharmacy, including their service code prefixes, max queue limits, and ticket-generation visibility.</p>
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'queueing:service-list' %}" class="button">Manage Services</a>
                     <a href="{% url 'queueing:service-create' %}" class="button secondary">Add Service</a>
@@ -74,6 +74,15 @@
                     <a href="{% url 'queueing:display-screen-create' %}" class="button secondary">Add Screen</a>
                 </div>
             </div>
+
+            <div class="card">
+                <h3>Ticket Generation</h3>
+                <div class="stat">Live Input</div>
+                <p>Generate queue tickets only for services that are active, visible in ticket generation, and still below their max queue limit.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
+                </div>
+            </div>
         </div>
 
         <div class="dashboard-grid" style="margin-top: 20px;">
@@ -95,6 +104,27 @@
                 </div>
                 {% else %}
                 <div class="empty-state">No queue services have been configured yet.</div>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <div class="section-head">
+                    <h3>Ticket Generation Services</h3>
+                    <span class="badge">{{ ticket_generation_services|length }}</span>
+                </div>
+                {% if ticket_generation_services %}
+                <div class="list">
+                    {% for service in ticket_generation_services %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ service.name }}</strong>
+                            <p>{{ service.code }} - Limit {{ service.max_queue_limit }} - Active for ticket generation</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">No services are currently available for ticket generation.</div>
                 {% endif %}
             </div>
 

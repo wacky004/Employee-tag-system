@@ -1,13 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db import transaction
 from django.db.models import Count
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.urls import reverse
-from django.views.generic import CreateView, ListView, TemplateView, UpdateView
+from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
 
-from .forms import QueueCounterForm, QueueDisplayScreenForm, QueueServiceForm
-from .models import QueueCounter, QueueDisplayScreen, QueueService, QueueSystemSetting, QueueTicket
+from .forms import QueueCounterForm, QueueDisplayScreenForm, QueueServiceForm, QueueTicketGenerationForm
+from .models import QueueCounter, QueueDisplayScreen, QueueHistoryLog, QueueService, QueueSystemSetting, QueueTicket
 
 User = get_user_model()
 
@@ -71,6 +72,10 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
                 "waiting_ticket_count": tickets.filter(status=QueueTicket.Status.WAITING).count(),
                 "display_screen_count": screens.count(),
                 "active_services": services.filter(is_active=True).order_by("name")[:5],
+                "ticket_generation_services": services.filter(
+                    is_active=True,
+                    show_in_ticket_generation=True,
+                ).order_by("name", "code")[:5],
                 "ticket_status_rows": list(
                     tickets.values("status").annotate(total=Count("id")).order_by("status")
                 ),
@@ -78,6 +83,56 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
             }
         )
         return context
+
+
+class QueueTicketCreateView(QueueingSetupMixin, FormView):
+    form_class = QueueTicketGenerationForm
+    template_name = "queueing/ticket_form.html"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["company"] = self.request.user.company
+        return kwargs
+
+    def form_valid(self, form):
+        service = form.cleaned_data["service"]
+        is_priority = form.cleaned_data["is_priority"]
+
+        with transaction.atomic():
+            locked_service = QueueService.objects.select_for_update().get(pk=service.pk)
+            if locked_service.current_queue_number >= locked_service.max_queue_limit:
+                form.add_error("service", "Maximum queue limit reached for this service")
+                messages.error(self.request, "Maximum queue limit reached for this service")
+                return self.form_invalid(form)
+
+            locked_service.current_queue_number += 1
+            locked_service.save(update_fields=["current_queue_number", "updated_at"])
+
+            queue_number = f"{locked_service.code}-{locked_service.current_queue_number:03d}"
+            ticket = QueueTicket.objects.create(
+                company=locked_service.company,
+                queue_number=queue_number,
+                service=locked_service,
+                is_priority=is_priority,
+            )
+            QueueHistoryLog.objects.create(
+                company=locked_service.company,
+                ticket=ticket,
+                service=locked_service,
+                actor=self.request.user,
+                action=QueueHistoryLog.Action.CREATED,
+                notes="Queue ticket generated from the setup page.",
+            )
+
+        messages.success(self.request, f"Queue ticket {queue_number} created successfully.")
+        return redirect("queueing:ticket-create")
+
+    def form_invalid(self, form):
+        if form.non_field_errors():
+            messages.error(self.request, form.non_field_errors()[0])
+        else:
+            messages.error(self.request, "Queue ticket creation failed. Please review the form and try again.")
+        return super().form_invalid(form)
 
 
 class QueueServiceListView(QueueingSetupMixin, ListView):

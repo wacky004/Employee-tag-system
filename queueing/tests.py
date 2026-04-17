@@ -120,6 +120,7 @@ class QueueingSetupPageTests(TestCase):
                 "max_queue_limit": 50,
                 "current_queue_number": 0,
                 "allow_priority": "on",
+                "show_in_ticket_generation": "on",
             },
             follow=True,
         )
@@ -135,6 +136,7 @@ class QueueingSetupPageTests(TestCase):
                 "max_queue_limit": 100,
                 "current_queue_number": 12,
                 "allow_priority": "",
+                "show_in_ticket_generation": "",
             },
             follow=True,
         )
@@ -146,6 +148,27 @@ class QueueingSetupPageTests(TestCase):
         self.assertEqual(self.service.name, "Enrollment")
         self.assertEqual(self.service.max_queue_limit, 100)
         self.assertFalse(self.service.is_active)
+        self.assertFalse(self.service.show_in_ticket_generation)
+
+    def test_service_create_blocks_duplicate_service_codes(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("queueing:service-create"),
+            {
+                "company": self.company.id,
+                "name": "Cashier",
+                "code": "R",
+                "description": "Duplicate code",
+                "is_active": "on",
+                "max_queue_limit": 80,
+                "current_queue_number": 0,
+                "allow_priority": "",
+                "show_in_ticket_generation": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "A queue service with this code already exists for this tenant.")
 
     def test_admin_can_create_and_edit_counter_with_service_assignment(self):
         other_service = QueueService.objects.create(
@@ -235,6 +258,61 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(counter_response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
         self.assertContains(screen_response, reverse("queueing:display-screen-update", kwargs={"pk": self.screen.pk}))
 
+    def test_admin_can_generate_ticket_when_service_is_below_limit(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("queueing:ticket-create"),
+            {
+                "service": self.service.id,
+                "is_priority": "on",
+            },
+            follow=True,
+        )
+        self.service.refresh_from_db()
+        ticket = QueueTicket.objects.get(service=self.service, queue_number="R-001")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.service.current_queue_number, 1)
+        self.assertTrue(ticket.is_priority)
+        self.assertTrue(
+            QueueHistoryLog.objects.filter(
+                ticket=ticket,
+                action=QueueHistoryLog.Action.CREATED,
+            ).exists()
+        )
+
+    def test_admin_cannot_generate_ticket_when_service_limit_is_reached(self):
+        self.service.current_queue_number = self.service.max_queue_limit
+        self.service.save(update_fields=["current_queue_number"])
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("queueing:ticket-create"),
+            {
+                "service": self.service.id,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Maximum queue limit reached for this service")
+        self.assertFalse(QueueTicket.objects.filter(service=self.service, queue_number="R-001").exists())
+
+    def test_ticket_generation_only_shows_enabled_services(self):
+        hidden_service = QueueService.objects.create(
+            company=self.company,
+            name="Pharmacy",
+            code="P",
+            max_queue_limit=50,
+            show_in_ticket_generation=False,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:ticket-create"))
+
+        self.assertContains(response, "Registrar")
+        self.assertNotContains(response, "Pharmacy")
+
 
 class QueueingModelTests(TestCase):
     def setUp(self):
@@ -257,6 +335,7 @@ class QueueingModelTests(TestCase):
             max_queue_limit=250,
             current_queue_number=18,
             allow_priority=True,
+            show_in_ticket_generation=True,
         )
         self.counter = QueueCounter.objects.create(
             company=self.company,
@@ -295,6 +374,7 @@ class QueueingModelTests(TestCase):
         self.assertEqual(self.service.code, "R")
         self.assertEqual(self.service.max_queue_limit, 250)
         self.assertTrue(self.service.allow_priority)
+        self.assertTrue(self.service.show_in_ticket_generation)
         self.assertEqual(self.counter.assigned_service, self.service)
         self.assertEqual(self.ticket.status, QueueTicket.Status.WAITING)
         self.assertTrue(self.ticket.is_priority)

@@ -36,6 +36,7 @@ class QueueServiceAdmin(PlatformQueueingAdminMixin, admin.ModelAdmin):
         "max_queue_limit",
         "current_queue_number",
         "allow_priority",
+        "show_in_ticket_generation",
         "is_active",
     )
     search_fields = ("name", "code", "company__name")
@@ -59,6 +60,7 @@ class QueueServiceAdmin(PlatformQueueingAdminMixin, admin.ModelAdmin):
                     "max_queue_limit",
                     "current_queue_number",
                     "allow_priority",
+                    "show_in_ticket_generation",
                     "is_active",
                 )
             },

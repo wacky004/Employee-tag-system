@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.models import Company
 
-from .models import QueueCounter, QueueDisplayScreen, QueueService
+from .models import QueueCounter, QueueDisplayScreen, QueueService, QueueSystemSetting, QueueTicket
 
 
 class QueueCompanyAwareFormMixin:
@@ -41,7 +41,34 @@ class QueueServiceForm(QueueCompanyAwareFormMixin, forms.ModelForm):
             "max_queue_limit",
             "current_queue_number",
             "allow_priority",
+            "show_in_ticket_generation",
         ]
+
+    def __init__(self, *args, company=None, can_manage_companies=False, **kwargs):
+        super().__init__(*args, company=company, can_manage_companies=can_manage_companies, **kwargs)
+        if not self.instance.pk and self.current_company:
+            default_setting = QueueSystemSetting.objects.filter(company=self.current_company).first()
+            if default_setting:
+                self.fields["max_queue_limit"].initial = default_setting.default_max_queue_per_service
+
+    def clean_code(self):
+        return (self.cleaned_data.get("code") or "").strip().upper()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        company = cleaned_data.get("company") or self.current_company
+        code = cleaned_data.get("code")
+        max_queue_limit = cleaned_data.get("max_queue_limit")
+        current_queue_number = cleaned_data.get("current_queue_number")
+        if company and code:
+            queryset = QueueService.objects.filter(company=company, code=code)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                self.add_error("code", "A queue service with this code already exists for this tenant.")
+        if max_queue_limit is not None and current_queue_number is not None and current_queue_number > max_queue_limit:
+            self.add_error("current_queue_number", "Current queue number cannot be greater than the max queue limit.")
+        return cleaned_data
 
 
 class QueueCounterForm(QueueCompanyAwareFormMixin, forms.ModelForm):
@@ -90,3 +117,33 @@ class QueueDisplayScreenForm(QueueCompanyAwareFormMixin, forms.ModelForm):
         else:
             service_queryset = QueueService.objects.none()
         self.fields["services"].queryset = service_queryset
+
+
+class QueueTicketGenerationForm(forms.ModelForm):
+    class Meta:
+        model = QueueTicket
+        fields = ["service", "is_priority"]
+
+    def __init__(self, *args, company=None, **kwargs):
+        self.current_company = company
+        super().__init__(*args, **kwargs)
+        service_queryset = QueueService.objects.filter(
+            is_active=True,
+            show_in_ticket_generation=True,
+        ).order_by("name", "code")
+        if self.current_company:
+            service_queryset = service_queryset.filter(company=self.current_company)
+        else:
+            service_queryset = QueueService.objects.none()
+        self.fields["service"].queryset = service_queryset
+
+    def clean(self):
+        cleaned_data = super().clean()
+        service = cleaned_data.get("service")
+        if not service:
+            return cleaned_data
+        if not service.is_active or not service.show_in_ticket_generation:
+            raise forms.ValidationError("This service is not available for ticket generation.")
+        if service.current_queue_number >= service.max_queue_limit:
+            raise forms.ValidationError("Maximum queue limit reached for this service")
+        return cleaned_data
