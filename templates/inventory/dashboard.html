@@ -18,36 +18,36 @@
                         <span class="inventory-nav__title">Dashboard</span>
                         <span class="inventory-nav__meta">Summary and monitoring</span>
                     </a>
-                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Equipment">
                         <span class="inventory-nav__title">Equipment</span>
                         <span class="inventory-nav__meta">Assets and status views</span>
                     </a>
-                    <a href="{% url 'inventory:category-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:category-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Categories">
                         <span class="inventory-nav__title">Categories</span>
                         <span class="inventory-nav__meta">Equipment grouping options</span>
                     </a>
-                    <a href="{% url 'inventory:equipment-assign' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:equipment-assign' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Assignments">
                         <span class="inventory-nav__title">Assignments</span>
                         <span class="inventory-nav__meta">Issue and return assets</span>
                     </a>
-                    <a href="{% url 'inventory:employee-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:employee-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Employees">
                         <span class="inventory-nav__title">Employees</span>
                         <span class="inventory-nav__meta">Inventory-only employee records</span>
                     </a>
-                    <a href="{% url 'inventory:supervisor-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:supervisor-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Supervisors">
                         <span class="inventory-nav__title">Supervisors</span>
                         <span class="inventory-nav__meta">Supervisor directory</span>
                     </a>
-                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:equipment-report-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Reports">
                         <span class="inventory-nav__title">Reports</span>
                         <span class="inventory-nav__meta">Filtering and summary pages</span>
                     </a>
-                    <button type="button" class="inventory-nav__item inventory-nav__button" data-open-workbook-modal>
+                    <a href="{% url 'inventory:workbook' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Import / Export Excel">
                         <span class="inventory-nav__title">Import / Export</span>
                         <span class="inventory-nav__meta">Excel workbook updates</span>
-                    </button>
+                    </a>
                     {% if can_manage_inventory %}
-                    <a href="{% url 'inventory:audit-log-list' %}" class="inventory-nav__item">
+                    <a href="{% url 'inventory:audit-log-list' %}" class="inventory-nav__item" data-inventory-modal-link data-modal-title="Audit Log">
                         <span class="inventory-nav__title">Audit Log</span>
                         <span class="inventory-nav__meta">Recent inventory actions</span>
                     </a>
@@ -72,7 +72,7 @@
                     </div>
                     <div class="inventory-header__actions">
                         <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
-                        <a href="{% url 'inventory:summary' %}" class="button secondary">Summary</a>
+                        <a href="{% url 'inventory:summary' %}" class="button secondary" data-inventory-modal-link data-modal-title="Summary">Summary</a>
                     </div>
                 </header>
 
@@ -176,14 +176,14 @@
                         </div>
                         <div class="inventory-quick-actions">
                             {% if can_manage_inventory %}
-                            <a href="{% url 'inventory:equipment-create' %}" class="button">Add Equipment</a>
-                            <a href="{% url 'inventory:category-create' %}" class="button secondary">Add Category</a>
-                            <a href="{% url 'inventory:equipment-assign' %}" class="button secondary">Assign Equipment</a>
-                            <a href="{% url 'inventory:employee-create' %}" class="button secondary">Add Employee</a>
-                            <button type="button" class="button secondary" data-open-workbook-modal>Import / Export Excel</button>
+                            <a href="{% url 'inventory:equipment-create' %}" class="button" data-inventory-modal-link data-modal-title="Add Equipment">Add Equipment</a>
+                            <a href="{% url 'inventory:category-create' %}" class="button secondary" data-inventory-modal-link data-modal-title="Add Category">Add Category</a>
+                            <a href="{% url 'inventory:equipment-assign' %}" class="button secondary" data-inventory-modal-link data-modal-title="Assign Equipment">Assign Equipment</a>
+                            <a href="{% url 'inventory:employee-create' %}" class="button secondary" data-inventory-modal-link data-modal-title="Add Employee">Add Employee</a>
+                            <a href="{% url 'inventory:workbook' %}" class="button secondary" data-inventory-modal-link data-modal-title="Import / Export Excel">Import / Export Excel</a>
                             {% endif %}
-                            <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">View Equipment</a>
-                            <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective Report</a>
+                            <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary" data-inventory-modal-link data-modal-title="Equipment">View Equipment</a>
+                            <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary" data-inventory-modal-link data-modal-title="Defective Report">Defective Report</a>
                         </div>
                     </div>
                 </section>
@@ -192,119 +192,61 @@
     </div>
 </div>
 
-<div class="inventory-modal{% if open_workbook_modal %} is-open{% endif %}" id="inventory-workbook-modal" aria-hidden="{% if open_workbook_modal %}false{% else %}true{% endif %}">
-    <div class="inventory-modal__backdrop" data-close-workbook-modal></div>
-    <div class="inventory-modal__panel" role="dialog" aria-modal="true" aria-labelledby="inventory-workbook-title">
-        <div class="inventory-modal__header">
+<div class="inventory-floating-modal" id="inventory-floating-modal" aria-hidden="true">
+    <div class="inventory-floating-modal__backdrop" data-close-inventory-floating-modal></div>
+    <div class="inventory-floating-modal__panel" role="dialog" aria-modal="true" aria-labelledby="inventory-floating-modal-title">
+        <div class="inventory-floating-modal__header">
             <div>
-                <p class="inventory-header__eyebrow">Excel Tools</p>
-                <h2 id="inventory-workbook-title">Inventory Workbook</h2>
-                <p class="inventory-modal__summary">Import or export inventory records in Excel so you can update many entries at once.</p>
+                <p class="inventory-header__eyebrow">Inventory Window</p>
+                <h2 id="inventory-floating-modal-title">Inventory</h2>
+                <p class="inventory-modal__summary">Open inventory sections without leaving the dashboard.</p>
             </div>
             <div class="actions" style="margin-top: 0;">
-                <a href="{% url 'inventory:workbook-export' %}" class="button">Download Workbook</a>
-                <button type="button" class="button secondary" data-close-workbook-modal>Close</button>
+                <a href="#" class="button secondary" id="inventory-floating-modal-open-page" target="_blank" rel="noopener">Open Full Page</a>
+                <button type="button" class="button secondary" data-close-inventory-floating-modal>Close</button>
             </div>
         </div>
-
-        <div class="inventory-modal__body">
-            <div class="dashboard-grid">
-                <div class="card">
-                    <div class="section-head">
-                        <h3>Upload Workbook</h3>
-                        <span class="badge good">Super Admin Only</span>
-                    </div>
-                    <p class="muted">Use the exported workbook format, update the rows in Excel, then upload the file here.</p>
-                    <form method="post" enctype="multipart/form-data" style="margin-top: 16px;">
-                        {% csrf_token %}
-                        <input type="hidden" name="inventory_action" value="import_workbook">
-                        {% for field in workbook_form %}
-                        <div class="field">
-                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
-                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
-                        </div>
-                        {% endfor %}
-                        {% if workbook_form.non_field_errors %}
-                        <div class="muted">{{ workbook_form.non_field_errors|join:", " }}</div>
-                        {% endif %}
-                        <div class="actions">
-                            <button type="submit" class="button">Import Workbook</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="card">
-                    <div class="section-head">
-                        <h3>Included Sheets</h3>
-                    </div>
-                    <div class="list">
-                        {% for sheet_name, columns in workbook_sheet_map.items %}
-                        <div class="list-item">
-                            <div>
-                                <strong>{{ sheet_name }}</strong>
-                                <p>{{ columns|join:", " }}</p>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" style="margin-top: 20px;">
-                <div class="section-head">
-                    <h3>Import Notes</h3>
-                </div>
-                <div class="list">
-                    <div class="list-item">
-                        <div>
-                            <strong>Create or update in bulk</strong>
-                            <p>Rows are matched by unique codes such as category code, supervisor code, employee code, and asset code.</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Workbook-first workflow</strong>
-                            <p>Download the workbook first to get the correct headers and sheet names before editing in Excel.</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Assignments stay protected</strong>
-                            <p>This workbook updates master records only. Equipment assignment history and return history remain managed through the assignment flow.</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Friendly Excel values are accepted</strong>
-                            <p>You can type category names like Laptop, supervisor full names, and status labels like Brand New or To Be Checked. The importer will convert them automatically.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="inventory-floating-modal__body">
+            <iframe
+                id="inventory-floating-modal-frame"
+                class="inventory-floating-modal__frame"
+                title="Inventory module content"
+                loading="lazy"
+            ></iframe>
         </div>
     </div>
 </div>
 
 <script>
     (function () {
-        const modal = document.getElementById("inventory-workbook-modal");
+        const modal = document.getElementById("inventory-floating-modal");
+        const frame = document.getElementById("inventory-floating-modal-frame");
+        const title = document.getElementById("inventory-floating-modal-title");
+        const openPageLink = document.getElementById("inventory-floating-modal-open-page");
+        const openLinks = document.querySelectorAll("[data-inventory-modal-link]");
+        const closeButtons = document.querySelectorAll("[data-close-inventory-floating-modal]");
+
         if (!modal) {
             return;
         }
-
-        const openButtons = document.querySelectorAll("[data-open-workbook-modal]");
-        const closeButtons = document.querySelectorAll("[data-close-workbook-modal]");
 
         function setModalState(isOpen) {
             modal.classList.toggle("is-open", isOpen);
             modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
             document.body.style.overflow = isOpen ? "hidden" : "";
+            if (!isOpen) {
+                frame.removeAttribute("src");
+                openPageLink.setAttribute("href", "#");
+            }
         }
 
-        openButtons.forEach((button) => {
-            button.addEventListener("click", function () {
+        openLinks.forEach((link) => {
+            link.addEventListener("click", function (event) {
+                event.preventDefault();
+                const modalTitle = link.getAttribute("data-modal-title") || link.textContent.trim() || "Inventory";
+                title.textContent = modalTitle;
+                frame.setAttribute("src", link.getAttribute("href"));
+                openPageLink.setAttribute("href", link.getAttribute("href"));
                 setModalState(true);
             });
         });
@@ -320,10 +262,6 @@
                 setModalState(false);
             }
         });
-
-        if (modal.classList.contains("is-open")) {
-            document.body.style.overflow = "hidden";
-        }
     }());
 </script>
 {% endblock %}

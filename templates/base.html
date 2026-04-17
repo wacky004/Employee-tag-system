@@ -767,6 +767,69 @@
             padding-top: 4px;
         }
 
+        .inventory-floating-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 1100;
+        }
+
+        .inventory-floating-modal.is-open {
+            display: flex;
+        }
+
+        .inventory-floating-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(20, 33, 61, 0.46);
+            backdrop-filter: blur(6px);
+        }
+
+        .inventory-floating-modal__panel {
+            position: relative;
+            z-index: 1;
+            width: min(1320px, 100%);
+            height: min(88vh, 920px);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            border-radius: 28px;
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid rgba(215, 222, 234, 0.95);
+            box-shadow: 0 28px 80px rgba(20, 33, 61, 0.22);
+        }
+
+        .inventory-floating-modal__header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .inventory-floating-modal__header h2 {
+            margin: 0;
+        }
+
+        .inventory-floating-modal__body {
+            flex: 1;
+            min-height: 0;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: #f7fafc;
+        }
+
+        .inventory-floating-modal__frame {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #fff;
+        }
+
         .messages {
             display: grid;
             gap: 10px;
@@ -876,6 +939,19 @@
             }
 
             .inventory-modal__header {
+                flex-direction: column;
+            }
+
+            .inventory-floating-modal {
+                padding: 16px;
+            }
+
+            .inventory-floating-modal__panel {
+                height: min(92vh, 920px);
+                padding: 18px;
+            }
+
+            .inventory-floating-modal__header {
                 flex-direction: column;
             }
         }
