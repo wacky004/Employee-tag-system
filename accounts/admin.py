@@ -4,6 +4,8 @@ from django.contrib import admin
 from django.contrib.admin import AdminSite
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
+from attendance.models import AttendanceSession, CorrectionRequest, OverbreakRecord
+from tagging.models import TagLog, TagType
 from .models import Company, Role, User
 
 
@@ -174,6 +176,117 @@ class TenantUserAdmin(BaseScopedUserAdmin):
 
 
 tenant_admin_site.register(User, TenantUserAdmin)
+
+
+class TenantScopedAdminMixin:
+    def _has_tenant_admin_access(self, request):
+        return request.user.is_authenticated and (
+            request.user.can_manage_companies()
+            or (request.user.role == User.Role.SUPER_ADMIN and request.user.company_id is not None)
+        )
+
+    def has_module_permission(self, request):
+        return self._has_tenant_admin_access(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._has_tenant_admin_access(request)
+
+    def has_add_permission(self, request):
+        return self._has_tenant_admin_access(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._has_tenant_admin_access(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._has_tenant_admin_access(request)
+
+
+class TenantScopedTagLogAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = ("employee", "tag_type", "work_date", "timestamp", "source")
+    list_filter = ("tag_type", "source", "work_date")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "notes")
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("employee", "tag_type")
+        if request.user.can_manage_companies():
+            return queryset
+        return queryset.filter(employee__company=request.user.company)
+
+
+class TenantScopedAttendanceSessionAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = (
+        "employee",
+        "work_date",
+        "first_time_in",
+        "last_time_out",
+        "total_work_minutes",
+        "total_lunch_minutes",
+        "total_break_minutes",
+        "total_bio_minutes",
+        "total_overbreak_minutes",
+        "missing_tag_pairs_count",
+        "has_incomplete_records",
+        "is_late",
+    )
+    list_filter = ("current_status", "is_late", "has_incomplete_records", "work_date")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name")
+    readonly_fields = ("summary_notes",)
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("employee")
+        if request.user.can_manage_companies():
+            return queryset
+        return queryset.filter(employee__company=request.user.company)
+
+
+class TenantScopedOverbreakRecordAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = ("employee", "tag_type", "work_date", "excess_minutes", "status")
+    list_filter = ("status", "tag_type")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name")
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("employee", "tag_type", "attendance_session")
+        if request.user.can_manage_companies():
+            return queryset
+        return queryset.filter(employee__company=request.user.company)
+
+    def work_date(self, obj):
+        return obj.attendance_session.work_date
+
+
+class TenantScopedCorrectionRequestAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = ("employee", "request_type", "target_work_date", "requested_tag_type", "status", "reviewed_by", "created_at")
+    list_filter = ("request_type", "status", "target_work_date")
+    search_fields = ("employee__username", "employee__first_name", "employee__last_name", "reason", "details")
+    readonly_fields = ("reviewed_at", "applied_tag_log")
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("employee", "requested_tag_type", "reviewed_by", "applied_tag_log")
+        if request.user.can_manage_companies():
+            return queryset
+        return queryset.filter(employee__company=request.user.company)
+
+
+class TenantScopedTagTypeAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
+    list_display = ("code", "name", "category", "direction", "default_allowed_minutes", "is_active")
+    list_filter = ("category", "direction", "is_active")
+    search_fields = ("code", "name")
+
+    def has_add_permission(self, request):
+        return request.user.can_manage_companies()
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.can_manage_companies()
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.can_manage_companies()
+
+
+tenant_admin_site.register(TagLog, TenantScopedTagLogAdmin)
+tenant_admin_site.register(AttendanceSession, TenantScopedAttendanceSessionAdmin)
+tenant_admin_site.register(OverbreakRecord, TenantScopedOverbreakRecordAdmin)
+tenant_admin_site.register(CorrectionRequest, TenantScopedCorrectionRequestAdmin)
+tenant_admin_site.register(TagType, TenantScopedTagTypeAdmin)
 
 
 def _platform_admin_has_permission(self, request):

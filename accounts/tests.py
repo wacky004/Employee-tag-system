@@ -527,6 +527,12 @@ class TenantAdminTests(TestCase):
     def setUp(self):
         self.company = Company.objects.create(name="Harbor Foods", code="HARBOR")
         self.other_company = Company.objects.create(name="Peak Retail", code="PEAK")
+        self.tag_type = TagType.objects.create(
+            code="TIME_IN",
+            name="Time In",
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.IN,
+        )
         self.tenant_super_admin = User.objects.create_user(
             username="tenant-root",
             password="password123",
@@ -551,6 +557,40 @@ class TenantAdminTests(TestCase):
             role=User.Role.ADMIN,
             company=self.other_company,
         )
+        TagLog.objects.create(
+            employee=self.company_user,
+            tag_type=self.tag_type,
+            work_date=timezone.localdate(),
+            timestamp=timezone.now(),
+            work_mode="ONSITE",
+            source=TagLog.Source.WEB,
+        )
+        TagLog.objects.create(
+            employee=self.other_company_user,
+            tag_type=self.tag_type,
+            work_date=timezone.localdate(),
+            timestamp=timezone.now(),
+            work_mode="ONSITE",
+            source=TagLog.Source.WEB,
+        )
+        self.company_correction = self.company_user.correction_requests.create(
+            request_type="MISSING_TAG",
+            target_work_date=timezone.localdate(),
+            action_type="CHANGE",
+            requested_tag_type=self.tag_type,
+            requested_timestamp=timezone.now(),
+            requested_work_mode="ONSITE",
+            reason="Harbor correction",
+        )
+        self.other_company_user.correction_requests.create(
+            request_type="MISSING_TAG",
+            target_work_date=timezone.localdate(),
+            action_type="CHANGE",
+            requested_tag_type=self.tag_type,
+            requested_timestamp=timezone.now(),
+            requested_work_mode="ONSITE",
+            reason="Peak correction",
+        )
 
     def test_tenant_admin_user_list_only_shows_same_company_users(self):
         self.client.force_login(self.tenant_super_admin)
@@ -567,3 +607,19 @@ class TenantAdminTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login/", response["Location"])
+
+    def test_tenant_admin_tag_logs_only_show_same_company_records(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get(reverse("tenant_admin:tagging_taglog_changelist"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "harbor-user")
+        self.assertNotContains(response, "peak-user")
+
+    def test_tenant_admin_corrections_only_show_same_company_records(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get(reverse("tenant_admin:attendance_correctionrequest_changelist"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "harbor-user")
+        self.assertNotContains(response, "peak-user")
