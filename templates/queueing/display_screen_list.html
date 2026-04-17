@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Display Screens{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Display Screens</h1>
+                <p>Create and edit display screen records and control which services appear on each screen.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:display-screen-create' %}" class="button">Add Display Screen</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>Configured Display Screens</h3>
+                <span class="badge">{{ screens|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Services</th>
+                            <th>Status</th>
+                            <th>Company</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for screen in screens %}
+                        <tr>
+                            <td>{{ screen.name }}</td>
+                            <td>
+                                {% for service in screen.services.all %}
+                                <span>{{ service.name }}{% if not forloop.last %}, {% endif %}</span>
+                                {% empty %}
+                                <span class="muted">No linked services</span>
+                                {% endfor %}
+                            </td>
+                            <td>{% if screen.is_active %}Active{% else %}Inactive{% endif %}</td>
+                            <td>{{ screen.company.name }}</td>
+                            <td><a href="{% url 'queueing:display-screen-update' screen.pk %}" class="button ghost">Edit</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No display screens have been created yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

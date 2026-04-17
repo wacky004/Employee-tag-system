@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Queue Service{% else %}Add Queue Service{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>{% if object %}Edit Queue Service{% else %}Add Queue Service{% endif %}</h1>
+                <p>Update service names like Registrar or Cashier, change code prefixes, and adjust max queue limits.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:service-list' %}" class="button secondary">Back to Services</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <div class="actions">
+                    <button type="submit" class="button">{% if object %}Update Service{% else %}Create Service{% endif %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

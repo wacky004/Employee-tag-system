@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Services{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queue Services</h1>
+                <p>Manage service names, prefixes, queue limits, and active status for this tenant.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:service-create' %}" class="button">Add Service</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>Configured Services</h3>
+                <span class="badge">{{ services|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Code</th>
+                            <th>Max Queue</th>
+                            <th>Current Queue</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Company</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for service in services %}
+                        <tr>
+                            <td>
+                                <strong>{{ service.name }}</strong>
+                                <div class="muted">{{ service.description|default:"No description" }}</div>
+                            </td>
+                            <td>{{ service.code }}</td>
+                            <td>{{ service.max_queue_limit }}</td>
+                            <td>{{ service.current_queue_number }}</td>
+                            <td>{% if service.allow_priority %}Allowed{% else %}Disabled{% endif %}</td>
+                            <td>{% if service.is_active %}Active{% else %}Inactive{% endif %}</td>
+                            <td>{{ service.company.name }}</td>
+                            <td><a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="muted">No queue services have been created yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

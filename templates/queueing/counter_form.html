@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Queue Counter{% else %}Add Queue Counter{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>{% if object %}Edit Queue Counter{% else %}Add Queue Counter{% endif %}</h1>
+                <p>Create counters, assign them to services, and update counter activity when needed.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:counter-list' %}" class="button secondary">Back to Counters</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <div class="actions">
+                    <button type="submit" class="button">{% if object %}Update Counter{% else %}Create Counter{% endif %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Counters{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queue Counters</h1>
+                <p>Create counters, edit their names, and assign them to queue services.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:counter-create' %}" class="button">Add Counter</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>Configured Counters</h3>
+                <span class="badge">{{ counters|length }}</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Assigned Service</th>
+                            <th>Status</th>
+                            <th>Company</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for counter in counters %}
+                        <tr>
+                            <td>{{ counter.name }}</td>
+                            <td>{% if counter.assigned_service %}{{ counter.assigned_service.name }}{% else %}-{% endif %}</td>
+                            <td>{% if counter.is_active %}Active{% else %}Inactive{% endif %}</td>
+                            <td>{{ counter.company.name }}</td>
+                            <td><a href="{% url 'queueing:counter-update' counter.pk %}" class="button ghost">Edit</a></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="muted">No counters have been created yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

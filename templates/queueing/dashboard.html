@@ -8,7 +8,7 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Queueing System</h1>
-                <p>{{ organization_name }}. Queueing now has its core database structure inside AquiSo and is ready for workflow features in the next phase.</p>
+                <p>{{ organization_name }}. Queueing now has setup pages for services, counters, and display screens inside AquiSo.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
@@ -21,8 +21,8 @@
         </div>
 
         <section class="hero">
-            <h2>Core queueing data is ready</h2>
-            <p>This phase adds services, counters, tickets, queue history, display screens, and queue system settings so the module can support real queue operations next.</p>
+            <h2>Queue setup is ready</h2>
+            <p>Manage queue services, counters, and display screens from dedicated setup pages without leaving the current web app.</p>
         </section>
 
         <div class="mini-grid">
@@ -46,27 +46,33 @@
 
         <div class="grid" style="margin-top: 20px;">
             <div class="card">
-                <h3>Service Management</h3>
-                <div class="stat">Admin Ready</div>
-                <p>Superadmins can now configure service names like Registrar, Cashier, and Pharmacy, along with service code prefixes and max queue limits.</p>
-                {% if can_manage_organizations %}
+                <h3>Queue Services</h3>
+                <div class="stat">Setup</div>
+                <p>Create and edit queue services like Registrar, Cashier, and Pharmacy, including their service code prefixes and max queue limits.</p>
                 <div class="actions" style="margin-top: 16px;">
-                    <a href="/admin/queueing/queueservice/" class="button">Manage Services</a>
-                    <a href="/admin/queueing/queuesystemsetting/" class="button secondary">Queue Settings</a>
+                    <a href="{% url 'queueing:service-list' %}" class="button">Manage Services</a>
+                    <a href="{% url 'queueing:service-create' %}" class="button secondary">Add Service</a>
                 </div>
-                {% endif %}
             </div>
 
             <div class="card">
-                <h3>Ticket Structure</h3>
-                <div class="stat">Phase 2</div>
-                <p>Queue tickets now track service, status, assigned counter, and timestamps for calling and completion.</p>
+                <h3>Queue Counters</h3>
+                <div class="stat">Assignment</div>
+                <p>Create counters, assign them to services, and keep counter setup aligned with each tenant's queue flow.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:counter-list' %}" class="button">Manage Counters</a>
+                    <a href="{% url 'queueing:counter-create' %}" class="button secondary">Add Counter</a>
+                </div>
             </div>
 
             <div class="card">
-                <h3>Tenant Separation</h3>
-                <div class="stat">Scoped</div>
-                <p>Queueing records are linked to the tenant company so each client keeps separate queue services, tickets, counters, screens, and settings.</p>
+                <h3>Display Screens</h3>
+                <div class="stat">Display</div>
+                <p>Create and edit display screen records so queue announcements and service displays can be wired in the next phases.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:display-screen-list' %}" class="button">Manage Screens</a>
+                    <a href="{% url 'queueing:display-screen-create' %}" class="button secondary">Add Screen</a>
+                </div>
             </div>
         </div>
 
@@ -82,34 +88,13 @@
                     <div class="list-item">
                         <div>
                             <strong>{{ service.name }}</strong>
-                            <p>{{ service.code }} · Max {{ service.max_queue_limit }} · Current {{ service.current_queue_number }}</p>
+                            <p>{{ service.code }} - Max {{ service.max_queue_limit }} - Current {{ service.current_queue_number }}</p>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
                 <div class="empty-state">No queue services have been configured yet.</div>
-                {% endif %}
-            </div>
-
-            <div class="card">
-                <div class="section-head">
-                    <h3>Ticket Status Summary</h3>
-                    <span class="badge">{{ ticket_status_rows|length }}</span>
-                </div>
-                {% if ticket_status_rows %}
-                <div class="list">
-                    {% for row in ticket_status_rows %}
-                    <div class="list-item">
-                        <div>
-                            <strong>{{ row.status|title }}</strong>
-                            <p>{{ row.total }} ticket{{ row.total|pluralize }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="empty-state">No queue tickets have been created yet.</div>
                 {% endif %}
             </div>
 
@@ -130,18 +115,6 @@
                         <div>
                             <strong>Default Max Queue Per Service</strong>
                             <p>{{ queue_settings.default_max_queue_per_service }}</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Display Settings</strong>
-                            <p>{{ queue_settings.display_settings|length }} configured option{{ queue_settings.display_settings|length|pluralize }}</p>
-                        </div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Announcement Settings</strong>
-                            <p>{{ queue_settings.announcement_settings|length }} configured option{{ queue_settings.announcement_settings|length|pluralize }}</p>
                         </div>
                     </div>
                 </div>
