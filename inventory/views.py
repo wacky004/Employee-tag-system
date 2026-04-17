@@ -510,6 +510,32 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 return redirect("inventory:dashboard")
             return self.render_to_response(self.get_context_data(assignment_form=form))
 
+        if action == "import_workbook":
+            form = InventoryWorkbookImportForm(request.POST, request.FILES, prefix="workbook")
+            if form.is_valid():
+                try:
+                    results = _import_inventory_workbook(form.cleaned_data["workbook"])
+                except forms.ValidationError as exc:
+                    form.add_error("workbook", exc.message)
+                    messages.error(request, "Workbook import failed. Please fix the file and try again.")
+                    return self.render_to_response(
+                        self.get_context_data(workbook_form=form, open_workbook_modal=True)
+                    )
+
+                messages.success(
+                    request,
+                    "Workbook imported successfully: "
+                    f"{results['categories']} categories, "
+                    f"{results['supervisors']} supervisors, "
+                    f"{results['employees']} employees, "
+                    f"{results['equipment']} equipment rows processed.",
+                )
+                return redirect("inventory:dashboard")
+            messages.error(request, "Workbook import failed. Please fix the file and try again.")
+            return self.render_to_response(
+                self.get_context_data(workbook_form=form, open_workbook_modal=True)
+            )
+
         messages.error(request, "Unknown inventory action.")
         return redirect("inventory:dashboard")
 
@@ -561,6 +587,9 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 "category_form": kwargs.get("category_form") or EquipmentCategoryForm(prefix="category"),
                 "equipment_form": kwargs.get("equipment_form") or EquipmentForm(prefix="equipment"),
                 "assignment_form": kwargs.get("assignment_form") or EquipmentAssignmentForm(prefix="assignment"),
+                "workbook_form": kwargs.get("workbook_form") or InventoryWorkbookImportForm(prefix="workbook"),
+                "workbook_sheet_map": WORKBOOK_SHEETS,
+                "open_workbook_modal": kwargs.get("open_workbook_modal", False),
                 "supervisors": supervisors,
                 "employees": list(employees),
                 "equipment_list": list(equipment_list),

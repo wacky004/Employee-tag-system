@@ -42,10 +42,10 @@
                         <span class="inventory-nav__title">Reports</span>
                         <span class="inventory-nav__meta">Filtering and summary pages</span>
                     </a>
-                    <a href="{% url 'inventory:workbook' %}" class="inventory-nav__item">
+                    <button type="button" class="inventory-nav__item inventory-nav__button" data-open-workbook-modal>
                         <span class="inventory-nav__title">Import / Export</span>
                         <span class="inventory-nav__meta">Excel workbook updates</span>
-                    </a>
+                    </button>
                     {% if can_manage_inventory %}
                     <a href="{% url 'inventory:audit-log-list' %}" class="inventory-nav__item">
                         <span class="inventory-nav__title">Audit Log</span>
@@ -180,7 +180,7 @@
                             <a href="{% url 'inventory:category-create' %}" class="button secondary">Add Category</a>
                             <a href="{% url 'inventory:equipment-assign' %}" class="button secondary">Assign Equipment</a>
                             <a href="{% url 'inventory:employee-create' %}" class="button secondary">Add Employee</a>
-                            <a href="{% url 'inventory:workbook' %}" class="button secondary">Import / Export Excel</a>
+                            <button type="button" class="button secondary" data-open-workbook-modal>Import / Export Excel</button>
                             {% endif %}
                             <a href="{% url 'inventory:equipment-report-list' %}" class="button secondary">View Equipment</a>
                             <a href="{% url 'inventory:defective-equipment-report' %}" class="button secondary">Defective Report</a>
@@ -191,4 +191,139 @@
         </div>
     </div>
 </div>
+
+<div class="inventory-modal{% if open_workbook_modal %} is-open{% endif %}" id="inventory-workbook-modal" aria-hidden="{% if open_workbook_modal %}false{% else %}true{% endif %}">
+    <div class="inventory-modal__backdrop" data-close-workbook-modal></div>
+    <div class="inventory-modal__panel" role="dialog" aria-modal="true" aria-labelledby="inventory-workbook-title">
+        <div class="inventory-modal__header">
+            <div>
+                <p class="inventory-header__eyebrow">Excel Tools</p>
+                <h2 id="inventory-workbook-title">Inventory Workbook</h2>
+                <p class="inventory-modal__summary">Import or export inventory records in Excel so you can update many entries at once.</p>
+            </div>
+            <div class="actions" style="margin-top: 0;">
+                <a href="{% url 'inventory:workbook-export' %}" class="button">Download Workbook</a>
+                <button type="button" class="button secondary" data-close-workbook-modal>Close</button>
+            </div>
+        </div>
+
+        <div class="inventory-modal__body">
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Upload Workbook</h3>
+                        <span class="badge good">Super Admin Only</span>
+                    </div>
+                    <p class="muted">Use the exported workbook format, update the rows in Excel, then upload the file here.</p>
+                    <form method="post" enctype="multipart/form-data" style="margin-top: 16px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="inventory_action" value="import_workbook">
+                        {% for field in workbook_form %}
+                        <div class="field">
+                            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
+                            {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                        {% if workbook_form.non_field_errors %}
+                        <div class="muted">{{ workbook_form.non_field_errors|join:", " }}</div>
+                        {% endif %}
+                        <div class="actions">
+                            <button type="submit" class="button">Import Workbook</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Included Sheets</h3>
+                    </div>
+                    <div class="list">
+                        {% for sheet_name, columns in workbook_sheet_map.items %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ sheet_name }}</strong>
+                                <p>{{ columns|join:", " }}</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div class="section-head">
+                    <h3>Import Notes</h3>
+                </div>
+                <div class="list">
+                    <div class="list-item">
+                        <div>
+                            <strong>Create or update in bulk</strong>
+                            <p>Rows are matched by unique codes such as category code, supervisor code, employee code, and asset code.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Workbook-first workflow</strong>
+                            <p>Download the workbook first to get the correct headers and sheet names before editing in Excel.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Assignments stay protected</strong>
+                            <p>This workbook updates master records only. Equipment assignment history and return history remain managed through the assignment flow.</p>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div>
+                            <strong>Friendly Excel values are accepted</strong>
+                            <p>You can type category names like Laptop, supervisor full names, and status labels like Brand New or To Be Checked. The importer will convert them automatically.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById("inventory-workbook-modal");
+        if (!modal) {
+            return;
+        }
+
+        const openButtons = document.querySelectorAll("[data-open-workbook-modal]");
+        const closeButtons = document.querySelectorAll("[data-close-workbook-modal]");
+
+        function setModalState(isOpen) {
+            modal.classList.toggle("is-open", isOpen);
+            modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+            document.body.style.overflow = isOpen ? "hidden" : "";
+        }
+
+        openButtons.forEach((button) => {
+            button.addEventListener("click", function () {
+                setModalState(true);
+            });
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener("click", function () {
+                setModalState(false);
+            });
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape" && modal.classList.contains("is-open")) {
+                setModalState(false);
+            }
+        });
+
+        if (modal.classList.contains("is-open")) {
+            document.body.style.overflow = "hidden";
+        }
+    }());
+</script>
 {% endblock %}
