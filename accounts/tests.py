@@ -521,3 +521,49 @@ class CompanyManagementTests(TestCase):
         response = self.client.get(reverse("accounts:company-management"))
 
         self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
+
+class TenantAdminTests(TestCase):
+    def setUp(self):
+        self.company = Company.objects.create(name="Harbor Foods", code="HARBOR")
+        self.other_company = Company.objects.create(name="Peak Retail", code="PEAK")
+        self.tenant_super_admin = User.objects.create_user(
+            username="tenant-root",
+            password="password123",
+            email="tenant-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+            company=self.company,
+            limit_to_enabled_modules=True,
+            can_access_inventory=True,
+            is_staff=True,
+        )
+        self.company_user = User.objects.create_user(
+            username="harbor-user",
+            password="password123",
+            email="harbor-user@example.com",
+            role=User.Role.ADMIN,
+            company=self.company,
+        )
+        self.other_company_user = User.objects.create_user(
+            username="peak-user",
+            password="password123",
+            email="peak-user@example.com",
+            role=User.Role.ADMIN,
+            company=self.other_company,
+        )
+
+    def test_tenant_admin_user_list_only_shows_same_company_users(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get(reverse("tenant_admin:accounts_user_changelist"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "tenant-root")
+        self.assertContains(response, "harbor-user")
+        self.assertNotContains(response, "peak-user")
+
+    def test_tenant_super_admin_cannot_access_platform_admin(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get("/admin/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login/", response["Location"])

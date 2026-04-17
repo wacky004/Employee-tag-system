@@ -18,6 +18,9 @@
                 {% if can_view_inventory_module %}
                 <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory</a>
                 {% endif %}
+                {% if request.user.company_id %}
+                <a href="{% url 'tenant_admin:index' %}" class="button secondary">Tenant Admin</a>
+                {% endif %}
                 {% if can_manage_modules %}
                 <a href="/admin/" class="button secondary">Open Django Admin</a>
                 {% endif %}
@@ -64,6 +67,17 @@
                 <p>Manage full-access and limited-access admins, then choose which modules each user can actually see.</p>
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'accounts:module-access' %}" class="button">Manage Module Access</a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.user.company_id %}
+            <div class="card">
+                <h3>Tenant Administration</h3>
+                <div class="stat">Scoped Admin</div>
+                <p>Open the tenant admin to manage only the users that belong to {{ request.user.company.name }} without exposing other organizations.</p>
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'tenant_admin:index' %}" class="button">Open Tenant Admin</a>
                 </div>
             </div>
             {% endif %}

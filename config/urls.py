@@ -18,6 +18,8 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
+from accounts.admin import tenant_admin_site
+
 urlpatterns = [
     path("", include("accounts.urls")),
     path("", include("core.urls")),
@@ -26,5 +28,6 @@ urlpatterns = [
     path("tagging/", include("tagging.urls")),
     path("reports/", include("reports.urls")),
     path("admin/", admin.site.urls),
+    path("tenant-admin/", tenant_admin_site.urls),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 ]
