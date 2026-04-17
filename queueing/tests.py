@@ -364,6 +364,157 @@ class QueueingSetupPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Edit Service Settings")
 
+    def test_full_super_admin_can_open_ticket_generation_page(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("queueing:ticket-create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Registrar")
+
+    def test_operator_panel_can_call_next_mark_serving_mark_done_skip_and_recall(self):
+        waiting_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R002",
+            service=self.service,
+        )
+        skipped_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R003",
+            service=self.service,
+            status=QueueTicket.Status.SKIPPED,
+        )
+        self.client.force_login(self.admin)
+
+        call_next_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "call_next",
+                "service": self.service.id,
+                "counter": self.counter.id,
+            },
+            follow=True,
+        )
+        waiting_ticket.refresh_from_db()
+        self.assertEqual(call_next_response.status_code, 200)
+        self.assertEqual(waiting_ticket.status, QueueTicket.Status.CALLED)
+        self.assertEqual(waiting_ticket.assigned_counter, self.counter)
+
+        serving_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "mark_serving",
+                "ticket_id": waiting_ticket.id,
+                "counter": self.counter.id,
+            },
+            follow=True,
+        )
+        waiting_ticket.refresh_from_db()
+        self.assertEqual(serving_response.status_code, 200)
+        self.assertEqual(waiting_ticket.status, QueueTicket.Status.SERVING)
+
+        done_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "mark_done",
+                "ticket_id": waiting_ticket.id,
+            },
+            follow=True,
+        )
+        waiting_ticket.refresh_from_db()
+        self.assertEqual(done_response.status_code, 200)
+        self.assertEqual(waiting_ticket.status, QueueTicket.Status.COMPLETED)
+        self.assertIsNotNone(waiting_ticket.completed_at)
+
+        recall_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "recall",
+                "ticket_id": skipped_ticket.id,
+                "counter": self.counter.id,
+            },
+            follow=True,
+        )
+        skipped_ticket.refresh_from_db()
+
+        self.assertEqual(recall_response.status_code, 200)
+        self.assertEqual(skipped_ticket.status, QueueTicket.Status.CALLED)
+        self.assertEqual(skipped_ticket.assigned_counter, self.counter)
+
+    def test_operator_panel_can_call_specific_and_skip_ticket(self):
+        ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R004",
+            service=self.service,
+        )
+        self.client.force_login(self.admin)
+
+        call_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "call_specific",
+                "ticket_id": ticket.id,
+                "counter": self.counter.id,
+            },
+            follow=True,
+        )
+        ticket.refresh_from_db()
+
+        skip_response = self.client.post(
+            reverse("queueing:operator-panel"),
+            {
+                "queue_action": "skip",
+                "ticket_id": ticket.id,
+            },
+            follow=True,
+        )
+        ticket.refresh_from_db()
+
+        self.assertEqual(call_response.status_code, 200)
+        self.assertEqual(ticket.assigned_counter, self.counter)
+        self.assertEqual(skip_response.status_code, 200)
+        self.assertEqual(ticket.status, QueueTicket.Status.SKIPPED)
+
+    def test_admin_can_manually_update_ticket_service_status_and_counter(self):
+        other_service = QueueService.objects.create(
+            company=self.company,
+            name="Cashier",
+            code="C",
+            max_queue_limit=80,
+        )
+        other_counter = QueueCounter.objects.create(
+            company=self.company,
+            name="Counter 2",
+            assigned_service=other_service,
+        )
+        ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R005",
+            service=self.service,
+            assigned_counter=self.counter,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("queueing:ticket-update", kwargs={"pk": ticket.pk}),
+            {
+                "service": other_service.id,
+                "status": QueueTicket.Status.SERVING,
+                "assigned_counter": other_counter.id,
+                "is_priority": "on",
+            },
+            follow=True,
+        )
+        ticket.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ticket.service, other_service)
+        self.assertEqual(ticket.assigned_counter, other_counter)
+        self.assertEqual(ticket.status, QueueTicket.Status.SERVING)
+        self.assertTrue(ticket.is_priority)
+        self.assertTrue(
+            QueueHistoryLog.objects.filter(ticket=ticket, action=QueueHistoryLog.Action.REASSIGNED).exists()
+        )
+
 
 class QueueingModelTests(TestCase):
     def setUp(self):

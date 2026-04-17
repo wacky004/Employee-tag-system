@@ -66,6 +66,7 @@ class QueueTicket(models.Model):
     class Status(models.TextChoices):
         WAITING = "WAITING", "Waiting"
         CALLED = "CALLED", "Called"
+        SERVING = "SERVING", "Serving"
         COMPLETED = "COMPLETED", "Completed"
         SKIPPED = "SKIPPED", "Skipped"
         CANCELLED = "CANCELLED", "Cancelled"
@@ -114,9 +115,11 @@ class QueueHistoryLog(models.Model):
     class Action(models.TextChoices):
         CREATED = "CREATED", "Created"
         CALLED = "CALLED", "Called"
+        SERVING = "SERVING", "Serving"
         COMPLETED = "COMPLETED", "Completed"
         SKIPPED = "SKIPPED", "Skipped"
         CANCELLED = "CANCELLED", "Cancelled"
+        RECALL = "RECALL", "Recall"
         REASSIGNED = "REASSIGNED", "Reassigned"
 
     company = models.ForeignKey(

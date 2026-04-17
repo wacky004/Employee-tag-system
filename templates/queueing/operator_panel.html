@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Operator Panel{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Queue Operator Panel</h1>
+                <p>Manage the active queue flow, call tickets, mark status changes, and correct queue assignments when needed.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:ticket-create' %}" class="button secondary">Generate Ticket</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Call Next Queue</h3>
+                <p>Select a service and optional counter to call the next waiting ticket.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="queue_action" value="call_next">
+                    {{ call_next_form.as_p }}
+                    <div class="actions">
+                        <button type="submit" class="button">Call Next</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Manual Corrections</h3>
+                <div class="stat">Update</div>
+                <p>Use the edit buttons below to adjust ticket status, assigned counter, or service if a queue correction is needed.</p>
+                <p>If the current queue number needs correction, use the service edit page from Queue Services.</p>
+            </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Waiting Tickets</h3>
+                        <span class="badge">{{ waiting_tickets|length }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Queue</th>
+                                    <th>Service</th>
+                                    <th>Counter</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in waiting_tickets %}
+                                <tr>
+                                    <td><strong>{{ ticket.queue_number }}</strong></td>
+                                    <td>{{ ticket.service.name }}</td>
+                                    <td>{% if ticket.assigned_counter %}{{ ticket.assigned_counter.name }}{% else %}-{% endif %}</td>
+                                    <td>{{ ticket.created_at|date:"h:i A" }}</td>
+                                    <td>
+                                        <div class="actions" style="margin-top: 0;">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="queue_action" value="call_specific">
+                                                <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                                <button type="submit" class="button">Call</button>
+                                            </form>
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="queue_action" value="skip">
+                                                <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                                <button type="submit" class="button secondary">Skip</button>
+                                            </form>
+                                            <a href="{% url 'queueing:ticket-update' ticket.pk %}" class="button ghost">Edit</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="muted">No waiting tickets at the moment.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Called Tickets</h3>
+                        <span class="badge">{{ called_tickets|length }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Queue</th>
+                                    <th>Service</th>
+                                    <th>Counter</th>
+                                    <th>Called At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ticket in called_tickets %}
+                                <tr>
+                                    <td><strong>{{ ticket.queue_number }}</strong></td>
+                                    <td>{{ ticket.service.name }}</td>
+                                    <td>{% if ticket.assigned_counter %}{{ ticket.assigned_counter.name }}{% else %}-{% endif %}</td>
+                                    <td>{% if ticket.called_at %}{{ ticket.called_at|date:"h:i A" }}{% else %}-{% endif %}</td>
+                                    <td>
+                                        <div class="actions" style="margin-top: 0;">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="queue_action" value="mark_serving">
+                                                <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                                <button type="submit" class="button">Serving</button>
+                                            </form>
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="queue_action" value="recall">
+                                                <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                                <button type="submit" class="button secondary">Recall</button>
+                                            </form>
+                                            <a href="{% url 'queueing:ticket-update' ticket.pk %}" class="button ghost">Edit</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="muted">No called tickets at the moment.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Serving Tickets</h3>
+                        <span class="badge">{{ serving_tickets|length }}</span>
+                    </div>
+                    <div class="list">
+                        {% for ticket in serving_tickets %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ ticket.queue_number }}</strong>
+                                <p>{{ ticket.service.name }}{% if ticket.assigned_counter %} - {{ ticket.assigned_counter.name }}{% endif %}</p>
+                            </div>
+                            <div class="actions" style="margin-top: 0;">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="queue_action" value="mark_done">
+                                    <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                    <button type="submit" class="button">Done</button>
+                                </form>
+                                <a href="{% url 'queueing:ticket-update' ticket.pk %}" class="button ghost">Edit</a>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No tickets are being served right now.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Skipped Tickets</h3>
+                        <span class="badge">{{ skipped_tickets|length }}</span>
+                    </div>
+                    <div class="list">
+                        {% for ticket in skipped_tickets %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ ticket.queue_number }}</strong>
+                                <p>{{ ticket.service.name }}</p>
+                            </div>
+                            <div class="actions" style="margin-top: 0;">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="queue_action" value="recall">
+                                    <input type="hidden" name="ticket_id" value="{{ ticket.pk }}">
+                                    <button type="submit" class="button secondary">Recall</button>
+                                </form>
+                                <a href="{% url 'queueing:ticket-update' ticket.pk %}" class="button ghost">Edit</a>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No skipped tickets right now.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Recent Completed</h3>
+                        <span class="badge">{{ recent_completed_tickets|length }}</span>
+                    </div>
+                    <div class="list">
+                        {% for ticket in recent_completed_tickets %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ ticket.queue_number }}</strong>
+                                <p>{{ ticket.service.name }}{% if ticket.completed_at %} - {{ ticket.completed_at|date:"h:i A" }}{% endif %}</p>
+                            </div>
+                            <a href="{% url 'queueing:ticket-update' ticket.pk %}" class="button ghost">Edit</a>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">No completed tickets yet.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

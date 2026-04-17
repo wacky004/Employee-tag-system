@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Queue Ticket{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>Edit Queue Ticket</h1>
+                <p>Manually update ticket status, assigned counter, or service if queue corrections or transfers are needed.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Back to Operator Panel</a>
+                <a href="{% url 'queueing:service-update' object.service.pk %}" class="button secondary">Edit Service</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-head">
+                <h3>{{ object.queue_number }}</h3>
+                <span class="badge">{{ object.get_status_display }}</span>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <div class="actions">
+                    <button type="submit" class="button">Update Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

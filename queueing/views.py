@@ -5,9 +5,17 @@ from django.db.models import Count
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView
 
-from .forms import QueueCounterForm, QueueDisplayScreenForm, QueueServiceForm, QueueTicketGenerationForm
+from .forms import (
+    QueueCallNextForm,
+    QueueCounterForm,
+    QueueDisplayScreenForm,
+    QueueServiceForm,
+    QueueTicketGenerationForm,
+    QueueTicketUpdateForm,
+)
 from .models import QueueCounter, QueueDisplayScreen, QueueHistoryLog, QueueService, QueueSystemSetting, QueueTicket
 
 User = get_user_model()
@@ -42,6 +50,18 @@ class QueueingSetupMixin(QueueingAccessMixin):
             "company": self.request.user.company,
             "can_manage_companies": self.request.user.can_manage_companies(),
         }
+
+
+def _log_queue_action(*, ticket, actor, action, notes="", counter=None, service=None):
+    QueueHistoryLog.objects.create(
+        company=ticket.company,
+        ticket=ticket,
+        service=service or ticket.service,
+        counter=counter if counter is not None else ticket.assigned_counter,
+        actor=actor,
+        action=action,
+        notes=notes,
+    )
 
 
 class QueueingDashboardView(QueueingAccessMixin, TemplateView):
@@ -177,6 +197,150 @@ class QueueTicketSuccessView(QueueingSetupMixin, DetailView):
         return context
 
 
+class QueueOperatorPanelView(QueueingSetupMixin, TemplateView):
+    template_name = "queueing/operator_panel.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        tickets = self._company_queryset(
+            QueueTicket.objects.select_related("service", "assigned_counter", "company").order_by("created_at", "id")
+        )
+        services = self._company_queryset(QueueService.objects.order_by("name", "code"))
+        context.update(
+            {
+                "call_next_form": kwargs.get("call_next_form") or QueueCallNextForm(company=self.request.user.company),
+                "waiting_tickets": tickets.filter(status=QueueTicket.Status.WAITING),
+                "called_tickets": tickets.filter(status=QueueTicket.Status.CALLED),
+                "serving_tickets": tickets.filter(status=QueueTicket.Status.SERVING),
+                "skipped_tickets": tickets.filter(status=QueueTicket.Status.SKIPPED),
+                "recent_completed_tickets": tickets.filter(status=QueueTicket.Status.COMPLETED)[:10],
+                "services": services,
+            }
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("queue_action", "").strip()
+        if action == "call_next":
+            return self._call_next(request)
+        if action in {"call_specific", "mark_serving", "mark_done", "skip", "recall"}:
+            return self._update_ticket_action(request, action)
+        messages.error(request, "Unknown queue action.")
+        return redirect("queueing:operator-panel")
+
+    def _call_next(self, request):
+        form = QueueCallNextForm(request.POST, company=request.user.company)
+        if not form.is_valid():
+            messages.error(request, "Call next failed. Please review the form and try again.")
+            return self.render_to_response(self.get_context_data(call_next_form=form))
+
+        service = form.cleaned_data["service"]
+        counter = form.cleaned_data["counter"]
+        ticket = self._company_queryset(
+            QueueTicket.objects.filter(service=service, status=QueueTicket.Status.WAITING).order_by("created_at", "id")
+        ).first()
+        if not ticket:
+            messages.error(request, "No waiting tickets are available for that service.")
+            return redirect("queueing:operator-panel")
+
+        ticket.status = QueueTicket.Status.CALLED
+        ticket.assigned_counter = counter
+        ticket.called_at = timezone.now()
+        ticket.save(update_fields=["status", "assigned_counter", "called_at"])
+        _log_queue_action(
+            ticket=ticket,
+            actor=request.user,
+            action=QueueHistoryLog.Action.CALLED,
+            notes="Called from operator panel using call next.",
+            counter=counter,
+            service=service,
+        )
+        messages.success(request, f"{ticket.queue_number} called successfully.")
+        return redirect("queueing:operator-panel")
+
+    def _update_ticket_action(self, request, action):
+        ticket = get_object_or_404(
+            self._company_queryset(QueueTicket.objects.select_related("service", "assigned_counter")),
+            pk=request.POST.get("ticket_id"),
+        )
+        counter = None
+        counter_id = request.POST.get("counter", "").strip()
+        if counter_id:
+            counter = get_object_or_404(self._company_queryset(QueueCounter.objects.all()), pk=counter_id)
+
+        now = timezone.now()
+        if action == "call_specific":
+            ticket.status = QueueTicket.Status.CALLED
+            if counter is not None:
+                ticket.assigned_counter = counter
+            ticket.called_at = now
+            update_fields = ["status", "called_at"]
+            if counter is not None:
+                update_fields.append("assigned_counter")
+            ticket.save(update_fields=update_fields)
+            _log_queue_action(
+                ticket=ticket,
+                actor=request.user,
+                action=QueueHistoryLog.Action.CALLED,
+                notes="Specific queue called from operator panel.",
+                counter=counter,
+            )
+            messages.success(request, f"{ticket.queue_number} called successfully.")
+        elif action == "mark_serving":
+            ticket.status = QueueTicket.Status.SERVING
+            if counter is not None:
+                ticket.assigned_counter = counter
+                ticket.save(update_fields=["status", "assigned_counter"])
+            else:
+                ticket.save(update_fields=["status"])
+            _log_queue_action(
+                ticket=ticket,
+                actor=request.user,
+                action=QueueHistoryLog.Action.SERVING,
+                notes="Queue marked as serving.",
+                counter=counter,
+            )
+            messages.success(request, f"{ticket.queue_number} marked as serving.")
+        elif action == "mark_done":
+            ticket.status = QueueTicket.Status.COMPLETED
+            ticket.completed_at = now
+            ticket.save(update_fields=["status", "completed_at"])
+            _log_queue_action(
+                ticket=ticket,
+                actor=request.user,
+                action=QueueHistoryLog.Action.COMPLETED,
+                notes="Queue marked as completed.",
+            )
+            messages.success(request, f"{ticket.queue_number} marked as done.")
+        elif action == "skip":
+            ticket.status = QueueTicket.Status.SKIPPED
+            ticket.save(update_fields=["status"])
+            _log_queue_action(
+                ticket=ticket,
+                actor=request.user,
+                action=QueueHistoryLog.Action.SKIPPED,
+                notes="Queue skipped from operator panel.",
+            )
+            messages.success(request, f"{ticket.queue_number} skipped.")
+        elif action == "recall":
+            ticket.status = QueueTicket.Status.CALLED
+            ticket.called_at = now
+            update_fields = ["status", "called_at"]
+            if counter is not None:
+                ticket.assigned_counter = counter
+                update_fields.append("assigned_counter")
+            ticket.save(update_fields=update_fields)
+            _log_queue_action(
+                ticket=ticket,
+                actor=request.user,
+                action=QueueHistoryLog.Action.RECALL,
+                notes="Queue recalled from operator panel.",
+                counter=counter,
+            )
+            messages.success(request, f"{ticket.queue_number} recalled.")
+        return redirect("queueing:operator-panel")
+
+
 class QueueServiceListView(QueueingSetupMixin, ListView):
     model = QueueService
     template_name = "queueing/service_list.html"
@@ -233,6 +397,66 @@ class QueueServiceUpdateView(QueueingSetupMixin, UpdateView):
 
     def get_success_url(self):
         return reverse("queueing:service-list")
+
+
+class QueueTicketUpdateView(QueueingSetupMixin, UpdateView):
+    model = QueueTicket
+    form_class = QueueTicketUpdateForm
+    template_name = "queueing/ticket_update_form.html"
+
+    def get_queryset(self):
+        queryset = QueueTicket.objects.select_related("company", "service", "assigned_counter")
+        return self._company_queryset(queryset)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["company"] = self.request.user.company
+        return kwargs
+
+    def form_valid(self, form):
+        original = self.get_object()
+        old_service = original.service
+        old_counter = original.assigned_counter
+        old_status = original.status
+        if form.cleaned_data["status"] == QueueTicket.Status.CALLED and not form.instance.called_at:
+            form.instance.called_at = timezone.now()
+        if form.cleaned_data["status"] == QueueTicket.Status.COMPLETED and not form.instance.completed_at:
+            form.instance.completed_at = timezone.now()
+        response = super().form_valid(form)
+
+        if old_service != self.object.service or old_counter != self.object.assigned_counter:
+            _log_queue_action(
+                ticket=self.object,
+                actor=self.request.user,
+                action=QueueHistoryLog.Action.REASSIGNED,
+                notes="Ticket service or counter adjusted manually.",
+            )
+        if old_status != self.object.status:
+            action_map = {
+                QueueTicket.Status.CALLED: QueueHistoryLog.Action.CALLED,
+                QueueTicket.Status.SERVING: QueueHistoryLog.Action.SERVING,
+                QueueTicket.Status.COMPLETED: QueueHistoryLog.Action.COMPLETED,
+                QueueTicket.Status.SKIPPED: QueueHistoryLog.Action.SKIPPED,
+                QueueTicket.Status.CANCELLED: QueueHistoryLog.Action.CANCELLED,
+            }
+            history_action = action_map.get(self.object.status)
+            if history_action:
+                _log_queue_action(
+                    ticket=self.object,
+                    actor=self.request.user,
+                    action=history_action,
+                    notes="Ticket status adjusted manually.",
+                )
+
+        messages.success(self.request, "Queue ticket updated successfully.")
+        return response
+
+    def form_invalid(self, form):
+        messages.error(self.request, "Queue ticket update failed. Please review the form and try again.")
+        return super().form_invalid(form)
+
+    def get_success_url(self):
+        return reverse("queueing:operator-panel")
 
 
 class QueueCounterListView(QueueingSetupMixin, ListView):

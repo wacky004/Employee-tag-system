@@ -133,8 +133,6 @@ class QueueTicketGenerationForm(forms.ModelForm):
         ).order_by("name", "code")
         if self.current_company:
             service_queryset = service_queryset.filter(company=self.current_company)
-        else:
-            service_queryset = QueueService.objects.none()
         self.fields["service"].queryset = service_queryset
 
     def clean(self):
@@ -147,3 +145,41 @@ class QueueTicketGenerationForm(forms.ModelForm):
         if service.current_queue_number >= service.max_queue_limit:
             raise forms.ValidationError("Maximum queue limit reached for this service")
         return cleaned_data
+
+
+class QueueCallNextForm(forms.Form):
+    service = forms.ModelChoiceField(queryset=QueueService.objects.none())
+    counter = forms.ModelChoiceField(queryset=QueueCounter.objects.none(), required=False)
+
+    def __init__(self, *args, company=None, **kwargs):
+        self.current_company = company
+        super().__init__(*args, **kwargs)
+        service_queryset = QueueService.objects.filter(is_active=True).order_by("name", "code")
+        counter_queryset = QueueCounter.objects.filter(is_active=True).order_by("name")
+        if self.current_company:
+            service_queryset = service_queryset.filter(company=self.current_company)
+            counter_queryset = counter_queryset.filter(company=self.current_company)
+        self.fields["service"].queryset = service_queryset
+        self.fields["counter"].queryset = counter_queryset
+
+
+class QueueTicketUpdateForm(forms.ModelForm):
+    class Meta:
+        model = QueueTicket
+        fields = [
+            "service",
+            "status",
+            "assigned_counter",
+            "is_priority",
+        ]
+
+    def __init__(self, *args, company=None, **kwargs):
+        self.current_company = company
+        super().__init__(*args, **kwargs)
+        service_queryset = QueueService.objects.order_by("name", "code")
+        counter_queryset = QueueCounter.objects.order_by("name")
+        if self.current_company:
+            service_queryset = service_queryset.filter(company=self.current_company)
+            counter_queryset = counter_queryset.filter(company=self.current_company)
+        self.fields["service"].queryset = service_queryset
+        self.fields["assigned_counter"].queryset = counter_queryset
