@@ -240,6 +240,32 @@ class EquipmentCreateModuleTests(TestCase):
             ).exists()
         )
 
+    def test_invalid_equipment_create_shows_failure_message(self):
+        user = User.objects.create_user(
+            username="superfailequipment",
+            email="superfailequipment@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+        )
+
+        self.client.force_login(user)
+        response = self.client.post(
+            reverse("inventory:equipment-create"),
+            {
+                "name": "",
+                "category": "",
+                "brand": "Dell",
+                "model": "Latitude 7440",
+                "serial_number": "DL-FAIL-001",
+                "asset_code": "",
+                "status": Equipment.Status.BRANDNEW,
+                "notes": "Missing required fields",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Equipment creation failed. Please review the form and try again.")
+
 
 class EquipmentCategoryModuleTests(TestCase):
     def setUp(self):
@@ -368,6 +394,82 @@ class InventoryWorkbookModuleTests(TestCase):
         self.assertTrue(Supervisor.objects.filter(employee_code="SUP-EXCEL", full_name="Excel Supervisor").exists())
         self.assertTrue(Employee.objects.filter(employee_code="EMP-EXCEL", full_name="Excel Employee").exists())
         self.assertTrue(Equipment.objects.filter(asset_code="EQ-EXCEL", name="Excel Laptop").exists())
+
+    def test_workbook_import_accepts_friendly_names_and_status_labels(self):
+        EquipmentCategory.objects.create(name="Laptop", code="LAPTOP")
+        Supervisor.objects.create(
+            employee_code="SUP-FRIENDLY",
+            full_name="Friendly Supervisor",
+            department="Operations",
+            job_title="Lead",
+        )
+
+        workbook = Workbook()
+        categories = workbook.active
+        categories.title = "Categories"
+        categories.append(["code", "name", "description", "is_active"])
+        categories.append(["MONITOR", "Monitor", "Display device", "yes"])
+
+        supervisors = workbook.create_sheet("Supervisors")
+        supervisors.append(["employee_code", "full_name", "department", "job_title", "is_active"])
+        supervisors.append(["SUP-NEW", "New Supervisor", "Operations", "Supervisor", "true"])
+
+        employees = workbook.create_sheet("Employees")
+        employees.append(["employee_code", "full_name", "department", "team_name", "job_title", "supervisor_code", "is_active"])
+        employees.append(["EMP-FRIENDLY", "Friendly Employee", "Operations", "Warehouse", "Clerk", "Friendly Supervisor", "active"])
+
+        equipment = workbook.create_sheet("Equipment")
+        equipment.append(["asset_code", "name", "category_code", "brand", "model", "serial_number", "status", "notes"])
+        equipment.append(["EQ-FRIENDLY", "Friendly Laptop", "Laptop", "Dell", "Latitude", "SER-FRIENDLY", "Brand New", "Imported with friendly labels"])
+
+        output = BytesIO()
+        workbook.save(output)
+        output.seek(0)
+
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:workbook"),
+            {
+                "workbook": SimpleUploadedFile(
+                    "friendly-inventory.xlsx",
+                    output.getvalue(),
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Workbook imported successfully")
+        self.assertTrue(Employee.objects.filter(employee_code="EMP-FRIENDLY", full_name="Friendly Employee").exists())
+        self.assertEqual(
+            Employee.objects.get(employee_code="EMP-FRIENDLY").supervisor.full_name,
+            "Friendly Supervisor",
+        )
+        self.assertEqual(
+            Equipment.objects.get(asset_code="EQ-FRIENDLY").category.code,
+            "LAPTOP",
+        )
+        self.assertEqual(
+            Equipment.objects.get(asset_code="EQ-FRIENDLY").status,
+            Equipment.Status.BRANDNEW,
+        )
+
+    def test_invalid_workbook_import_shows_failure_message(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("inventory:workbook"),
+            {
+                "workbook": SimpleUploadedFile(
+                    "inventory.txt",
+                    b"not an excel file",
+                    content_type="text/plain",
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Workbook import failed. Please fix the file and try again.")
 
     def test_admin_cannot_access_inventory_workbook_tools(self):
         self.client.force_login(self.admin)

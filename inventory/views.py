@@ -110,9 +110,17 @@ def _filter_equipment_queryset(queryset, params):
 def _normalize_cell(value):
     if value is None:
         return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
     if isinstance(value, str):
         return value.strip()
     return str(value).strip()
+
+
+def _normalize_lookup(value):
+    return "".join(character for character in _normalize_cell(value).lower() if character.isalnum())
 
 
 def _parse_bool(value, default=True):
@@ -124,6 +132,68 @@ def _parse_bool(value, default=True):
     if normalized in {"0", "false", "no", "n", "inactive"}:
         return False
     raise forms.ValidationError(f"Invalid boolean value: {value}")
+
+
+def _resolve_category(value, row_number):
+    lookup_value = _normalize_cell(value)
+    if not lookup_value:
+        return None
+
+    category = EquipmentCategory.objects.filter(Q(code__iexact=lookup_value) | Q(name__iexact=lookup_value)).first()
+    if category:
+        return category
+
+    normalized_lookup = _normalize_lookup(lookup_value)
+    for candidate in EquipmentCategory.objects.all():
+        if normalized_lookup in {_normalize_lookup(candidate.code), _normalize_lookup(candidate.name)}:
+            return candidate
+
+    raise forms.ValidationError(
+        f"Equipment row {row_number} references unknown category '{lookup_value}'. "
+        "Use either the category code or the category name."
+    )
+
+
+def _resolve_supervisor(value, row_number):
+    lookup_value = _normalize_cell(value)
+    if not lookup_value:
+        return None
+
+    supervisor = Supervisor.objects.filter(
+        Q(employee_code__iexact=lookup_value) | Q(full_name__iexact=lookup_value)
+    ).first()
+    if supervisor:
+        return supervisor
+
+    normalized_lookup = _normalize_lookup(lookup_value)
+    for candidate in Supervisor.objects.all():
+        if normalized_lookup in {_normalize_lookup(candidate.employee_code), _normalize_lookup(candidate.full_name)}:
+            return candidate
+
+    raise forms.ValidationError(
+        f"Employees row {row_number} references unknown supervisor '{lookup_value}'. "
+        "Use either the supervisor code or the supervisor full name."
+    )
+
+
+def _normalize_status(value, row_number):
+    raw_value = _normalize_cell(value)
+    if not raw_value:
+        return Equipment.Status.UNUSED
+
+    normalized_lookup = _normalize_lookup(raw_value)
+    status_map = {}
+    for code, label in Equipment.Status.choices:
+        status_map[_normalize_lookup(code)] = code
+        status_map[_normalize_lookup(label)] = code
+
+    if normalized_lookup in status_map:
+        return status_map[normalized_lookup]
+
+    raise forms.ValidationError(
+        f"Equipment row {row_number} has invalid status '{raw_value}'. "
+        "Use values like Brand New, Used, Unused, Defective, or To Be Checked."
+    )
 
 
 def _read_sheet_rows(workbook, sheet_name):
@@ -153,7 +223,6 @@ def _read_sheet_rows(workbook, sheet_name):
 
 def _import_inventory_workbook(file_obj):
     workbook = load_workbook(file_obj, data_only=True)
-    status_choices = {code for code, _label in Equipment.Status.choices}
     results = {
         "categories": 0,
         "supervisors": 0,
@@ -198,18 +267,13 @@ def _import_inventory_workbook(file_obj):
         for row_number, row in _read_sheet_rows(workbook, "Employees"):
             employee_code = _normalize_cell(row["employee_code"])
             full_name = _normalize_cell(row["full_name"])
-            supervisor_code = _normalize_cell(row["supervisor_code"])
             supervisor = None
             if not employee_code or not full_name:
                 raise forms.ValidationError(
                     f"Employees row {row_number} must include employee_code and full_name."
                 )
-            if supervisor_code:
-                supervisor = Supervisor.objects.filter(employee_code=supervisor_code).first()
-                if not supervisor:
-                    raise forms.ValidationError(
-                        f"Employees row {row_number} references unknown supervisor code '{supervisor_code}'."
-                    )
+            if _normalize_cell(row["supervisor_code"]):
+                supervisor = _resolve_supervisor(row["supervisor_code"], row_number)
             Employee.objects.update_or_create(
                 employee_code=employee_code,
                 defaults={
@@ -226,23 +290,12 @@ def _import_inventory_workbook(file_obj):
         for row_number, row in _read_sheet_rows(workbook, "Equipment"):
             asset_code = _normalize_cell(row["asset_code"])
             name = _normalize_cell(row["name"])
-            category_code = _normalize_cell(row["category_code"])
-            status = _normalize_cell(row["status"]) or Equipment.Status.UNUSED
-            category = None
+            category = _resolve_category(row["category_code"], row_number)
+            status = _normalize_status(row["status"], row_number)
 
             if not asset_code or not name:
                 raise forms.ValidationError(
                     f"Equipment row {row_number} must include asset_code and name."
-                )
-            if category_code:
-                category = EquipmentCategory.objects.filter(code=category_code).first()
-                if not category:
-                    raise forms.ValidationError(
-                        f"Equipment row {row_number} references unknown category code '{category_code}'."
-                    )
-            if status not in status_choices:
-                raise forms.ValidationError(
-                    f"Equipment row {row_number} has invalid status '{status}'."
                 )
 
             Equipment.objects.update_or_create(
@@ -400,6 +453,14 @@ class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class SuperAdminInventoryAccessMixin(InventoryAccessMixin):
     allowed_roles = (User.Role.SUPER_ADMIN,)
+
+
+class InventoryFeedbackMixin:
+    failure_message = "The operation failed. Please review the form and try again."
+
+    def form_invalid(self, form):
+        messages.error(self.request, self.failure_message)
+        return super().form_invalid(form)
 
 
 class InventoryDashboardView(InventoryAccessMixin, TemplateView):
@@ -639,9 +700,10 @@ class AuditLogListView(SuperAdminInventoryAccessMixin, ListView):
         return InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
 
 
-class InventoryWorkbookView(SuperAdminInventoryAccessMixin, FormView):
+class InventoryWorkbookView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, FormView):
     form_class = InventoryWorkbookImportForm
     template_name = "inventory/workbook.html"
+    failure_message = "Workbook import failed. Please fix the file and try again."
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -764,10 +826,11 @@ class UnassignedEquipmentReportView(EquipmentReportListView):
         return queryset
 
 
-class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
+class EquipmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
     model = Equipment
     form_class = EquipmentForm
     template_name = "inventory/equipment_create.html"
+    failure_message = "Equipment creation failed. Please review the form and try again."
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -779,9 +842,10 @@ class EquipmentCreateView(SuperAdminInventoryAccessMixin, CreateView):
         return reverse("inventory:equipment-create")
 
 
-class EquipmentAssignmentCreateView(SuperAdminInventoryAccessMixin, FormView):
+class EquipmentAssignmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, FormView):
     form_class = EquipmentAssignmentCreateForm
     template_name = "inventory/equipment_assignment_create.html"
+    failure_message = "Equipment assignment failed. Please review the form and try again."
 
     def form_valid(self, form):
         assignment = self._assign_equipment(
@@ -874,10 +938,11 @@ class SupervisorListView(SuperAdminInventoryAccessMixin, ListView):
         return Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name", "employee_code")
 
 
-class SupervisorCreateView(SuperAdminInventoryAccessMixin, CreateView):
+class SupervisorCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
     model = Supervisor
     form_class = SupervisorForm
     template_name = "inventory/supervisor_create.html"
+    failure_message = "Supervisor creation failed. Please review the form and try again."
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -898,10 +963,11 @@ class EquipmentCategoryListView(SuperAdminInventoryAccessMixin, ListView):
         return EquipmentCategory.objects.order_by("name", "code")
 
 
-class EquipmentCategoryCreateView(SuperAdminInventoryAccessMixin, CreateView):
+class EquipmentCategoryCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
     model = EquipmentCategory
     form_class = EquipmentCategoryForm
     template_name = "inventory/category_create.html"
+    failure_message = "Category creation failed. Please review the form and try again."
 
     def form_valid(self, form):
         messages.success(self.request, "Equipment category created successfully.")
@@ -911,10 +977,11 @@ class EquipmentCategoryCreateView(SuperAdminInventoryAccessMixin, CreateView):
         return reverse("inventory:category-list")
 
 
-class SupervisorUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+class SupervisorUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, UpdateView):
     model = Supervisor
     form_class = SupervisorForm
     template_name = "inventory/supervisor_update.html"
+    failure_message = "Supervisor update failed. Please review the form and try again."
 
     def form_valid(self, form):
         messages.success(self.request, "Supervisor updated successfully.")
@@ -1037,10 +1104,11 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
         return self.render_to_response(self.get_context_data(current_equipment_rows=current_equipment_rows))
 
 
-class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
+class EmployeeCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
     model = Employee
     form_class = EmployeeForm
     template_name = "inventory/employee_create.html"
+    failure_message = "Employee creation failed. Please review the form and try again."
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -1052,10 +1120,11 @@ class EmployeeCreateView(SuperAdminInventoryAccessMixin, CreateView):
         return reverse("inventory:employee-list")
 
 
-class EmployeeUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+class EmployeeUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, UpdateView):
     model = Employee
     form_class = EmployeeForm
     template_name = "inventory/employee_update.html"
+    failure_message = "Employee update failed. Please review the form and try again."
 
     def form_valid(self, form):
         original = self.get_object()
@@ -1079,9 +1148,10 @@ class EmployeeUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
         return reverse("inventory:employee-detail", kwargs={"pk": self.object.pk})
 
 
-class EmployeeAssignSupervisorView(SuperAdminInventoryAccessMixin, FormView):
+class EmployeeAssignSupervisorView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, FormView):
     form_class = EmployeeAssignSupervisorForm
     template_name = "inventory/employee_assign_supervisor.html"
+    failure_message = "Supervisor assignment failed. Please review the form and try again."
 
     def form_valid(self, form):
         employee = form.cleaned_data["employee"]
@@ -1092,10 +1162,11 @@ class EmployeeAssignSupervisorView(SuperAdminInventoryAccessMixin, FormView):
         return redirect("inventory:employee-list")
 
 
-class EquipmentUpdateView(SuperAdminInventoryAccessMixin, UpdateView):
+class EquipmentUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, UpdateView):
     model = Equipment
     form_class = EquipmentForm
     template_name = "inventory/equipment_update.html"
+    failure_message = "Equipment update failed. Please review the form and try again."
 
     def form_valid(self, form):
         original = self.get_object()
