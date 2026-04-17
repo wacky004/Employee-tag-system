@@ -102,6 +102,18 @@ class QueueingDashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Queueing System")
 
+    def test_queueing_dashboard_shows_shared_module_menu(self):
+        self.client.force_login(self.full_super_admin)
+        response = self.client.get(reverse("queueing:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Dashboard")
+        self.assertContains(response, "Employee Tagging")
+        self.assertContains(response, "Inventory")
+        self.assertContains(response, "Queueing")
+        self.assertContains(response, "Reports")
+        self.assertContains(response, "Settings")
+
     def test_admin_with_queueing_access_can_open_dashboard(self):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("queueing:dashboard"))

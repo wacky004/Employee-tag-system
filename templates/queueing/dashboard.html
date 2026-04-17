@@ -25,6 +25,8 @@
             </div>
         </div>
 
+        {% include "partials/module_menu.html" with active_module="queueing" %}
+
         <section class="hero">
             <h2>Queue analytics for {{ today|date:"F j, Y" }}</h2>
             <p>Track queue demand, service throughput, pending load, and the busiest desks so admins can react faster during live operations.</p>
