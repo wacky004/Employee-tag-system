@@ -172,11 +172,13 @@ class QueueDisplayScreen(models.Model):
         related_name="queue_display_screens",
     )
     name = models.CharField(max_length=150)
+    slug = models.SlugField(max_length=150, unique=True)
     services = models.ManyToManyField(
         QueueService,
         blank=True,
         related_name="display_screens",
     )
+    refresh_interval_seconds = models.PositiveIntegerField(default=15)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -101,7 +101,9 @@ class QueueDisplayScreenForm(QueueCompanyAwareFormMixin, forms.ModelForm):
         fields = [
             "company",
             "name",
+            "slug",
             "services",
+            "refresh_interval_seconds",
             "is_active",
         ]
 
@@ -117,6 +119,9 @@ class QueueDisplayScreenForm(QueueCompanyAwareFormMixin, forms.ModelForm):
         else:
             service_queryset = QueueService.objects.none()
         self.fields["services"].queryset = service_queryset
+
+    def clean_slug(self):
+        return (self.cleaned_data.get("slug") or "").strip().lower()
 
 
 class QueueTicketGenerationForm(forms.ModelForm):

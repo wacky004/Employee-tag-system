@@ -8,10 +8,13 @@
         <div class="topbar">
             <div class="brand">
                 <h1>{% if object %}Edit Display Screen{% else %}Add Display Screen{% endif %}</h1>
-                <p>Configure display screens and link them to the services they should show.</p>
+                <p>Configure screen name, linked services, refresh behavior, active status, and the URL used on monitors or browser tabs.</p>
             </div>
             <div class="actions">
                 <a href="{% url 'queueing:display-screen-list' %}" class="button secondary">Back to Display Screens</a>
+                {% if object %}
+                <a href="{% url 'queueing:display-screen-view' object.slug %}" class="button secondary" target="_blank" rel="noopener">Open Display</a>
+                {% endif %}
                 <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
             </div>
         </div>

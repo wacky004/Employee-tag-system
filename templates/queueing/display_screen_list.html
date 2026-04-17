@@ -26,7 +26,9 @@
                     <thead>
                         <tr>
                             <th>Name</th>
+                            <th>Display URL</th>
                             <th>Services</th>
+                            <th>Refresh</th>
                             <th>Status</th>
                             <th>Company</th>
                             <th>Actions</th>
@@ -37,19 +39,25 @@
                         <tr>
                             <td>{{ screen.name }}</td>
                             <td>
+                                <a href="{% url 'queueing:display-screen-view' screen.slug %}" class="button ghost" target="_blank" rel="noopener">
+                                    /queueing/display/{{ screen.slug }}/
+                                </a>
+                            </td>
+                            <td>
                                 {% for service in screen.services.all %}
                                 <span>{{ service.name }}{% if not forloop.last %}, {% endif %}</span>
                                 {% empty %}
                                 <span class="muted">No linked services</span>
                                 {% endfor %}
                             </td>
+                            <td>{{ screen.refresh_interval_seconds }}s</td>
                             <td>{% if screen.is_active %}Active{% else %}Inactive{% endif %}</td>
                             <td>{{ screen.company.name }}</td>
                             <td><a href="{% url 'queueing:display-screen-update' screen.pk %}" class="button ghost">Edit</a></td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="muted">No display screens have been created yet.</td>
+                            <td colspan="7" class="muted">No display screens have been created yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>

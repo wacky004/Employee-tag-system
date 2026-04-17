@@ -7,6 +7,7 @@ from .views import (
     QueueDisplayScreenCreateView,
     QueueDisplayScreenListView,
     QueueDisplayScreenUpdateView,
+    QueueDisplayScreenView,
     QueueOperatorPanelView,
     QueueServiceCreateView,
     QueueServiceListView,
@@ -34,4 +35,5 @@ urlpatterns = [
     path("display-screens/", QueueDisplayScreenListView.as_view(), name="display-screen-list"),
     path("display-screens/create/", QueueDisplayScreenCreateView.as_view(), name="display-screen-create"),
     path("display-screens/<int:pk>/edit/", QueueDisplayScreenUpdateView.as_view(), name="display-screen-update"),
+    path("display/<slug:slug>/", QueueDisplayScreenView.as_view(), name="display-screen-view"),
 ]

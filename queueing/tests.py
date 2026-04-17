@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Company
 from .models import (
@@ -110,6 +111,8 @@ class QueueingSetupPageTests(TestCase):
         self.screen = QueueDisplayScreen.objects.create(
             company=self.company,
             name="Main Screen",
+            slug="registrar",
+            refresh_interval_seconds=15,
         )
         self.screen.services.add(self.service)
 
@@ -228,7 +231,9 @@ class QueueingSetupPageTests(TestCase):
             {
                 "company": self.company.id,
                 "name": "Lobby Screen",
+                "slug": "cashier",
                 "services": [self.service.id, second_service.id],
+                "refresh_interval_seconds": 10,
                 "is_active": "on",
             },
             follow=True,
@@ -240,7 +245,9 @@ class QueueingSetupPageTests(TestCase):
             {
                 "company": self.company.id,
                 "name": "Updated Main Screen",
+                "slug": "main-screen-updated",
                 "services": [second_service.id],
+                "refresh_interval_seconds": 30,
             },
             follow=True,
         )
@@ -248,8 +255,11 @@ class QueueingSetupPageTests(TestCase):
 
         self.assertEqual(create_response.status_code, 200)
         self.assertEqual(created_screen.services.count(), 2)
+        self.assertEqual(created_screen.slug, "cashier")
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(self.screen.name, "Updated Main Screen")
+        self.assertEqual(self.screen.slug, "main-screen-updated")
+        self.assertEqual(self.screen.refresh_interval_seconds, 30)
         self.assertFalse(self.screen.is_active)
         self.assertEqual(list(self.screen.services.values_list("id", flat=True)), [second_service.id])
 
@@ -263,6 +273,50 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(service_response, reverse("queueing:service-update", kwargs={"pk": self.service.pk}))
         self.assertContains(counter_response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
         self.assertContains(screen_response, reverse("queueing:display-screen-update", kwargs={"pk": self.screen.pk}))
+
+    def test_display_screen_view_shows_current_and_recent_called_numbers(self):
+        called_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R010",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.CALLED,
+            called_at=timezone.now(),
+        )
+        serving_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R011",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.SERVING,
+            called_at=timezone.now() + timezone.timedelta(minutes=1),
+        )
+        completed_ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R009",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.COMPLETED,
+            called_at=timezone.now() - timezone.timedelta(minutes=2),
+            completed_at=timezone.now() - timezone.timedelta(minutes=1),
+        )
+
+        response = self.client.get(reverse("queueing:display-screen-view", kwargs={"slug": self.screen.slug}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Now Serving")
+        self.assertContains(response, serving_ticket.queue_number)
+        self.assertContains(response, called_ticket.queue_number)
+        self.assertContains(response, completed_ticket.queue_number)
+        self.assertContains(response, 'http-equiv="refresh" content="15"')
+
+    def test_inactive_display_screen_is_not_publicly_accessible(self):
+        self.screen.is_active = False
+        self.screen.save(update_fields=["is_active"])
+
+        response = self.client.get(reverse("queueing:display-screen-view", kwargs={"slug": self.screen.slug}))
+
+        self.assertEqual(response.status_code, 404)
 
     def test_admin_can_generate_ticket_when_service_is_below_limit(self):
         self.client.force_login(self.admin)
@@ -554,6 +608,9 @@ class QueueingModelTests(TestCase):
 
     def test_core_queueing_models_store_required_fields(self):
         screen = QueueDisplayScreen.objects.create(company=self.company, name="Main Lobby")
+        screen.slug = "main-lobby"
+        screen.refresh_interval_seconds = 20
+        screen.save()
         screen.services.add(self.service)
         settings_record = QueueSystemSetting.objects.create(
             company=self.company,
@@ -582,6 +639,8 @@ class QueueingModelTests(TestCase):
         self.assertTrue(self.ticket.is_priority)
         self.assertEqual(history.actor, self.super_admin)
         self.assertEqual(screen.services.first(), self.service)
+        self.assertEqual(screen.slug, "main-lobby")
+        self.assertEqual(screen.refresh_interval_seconds, 20)
         self.assertEqual(settings_record.default_max_queue_per_service, 300)
 
     def test_platform_super_admin_can_open_queue_service_admin_add_page(self):

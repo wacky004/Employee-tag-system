@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -192,6 +192,43 @@ class QueueTicketSuccessView(QueueingSetupMixin, DetailView):
         context.update(
             {
                 "can_edit_service_settings": self.request.user.can_manage_companies(),
+            }
+        )
+        return context
+
+
+class QueueDisplayScreenView(DetailView):
+    model = QueueDisplayScreen
+    template_name = "queueing/display_screen_view.html"
+    context_object_name = "screen"
+    slug_field = "slug"
+    slug_url_kwarg = "slug"
+
+    def get_queryset(self):
+        return QueueDisplayScreen.objects.filter(is_active=True).prefetch_related("services")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        screen = self.object
+        services = screen.services.filter(is_active=True).order_by("name", "code")
+        tickets = QueueTicket.objects.select_related("service", "assigned_counter").filter(
+            company=screen.company,
+            service__in=services,
+        )
+        current_ticket = tickets.filter(status__in=[QueueTicket.Status.SERVING, QueueTicket.Status.CALLED]).order_by(
+            "-called_at", "-created_at", "-id"
+        ).first()
+        recent_called_tickets = tickets.filter(
+            Q(status=QueueTicket.Status.CALLED)
+            | Q(status=QueueTicket.Status.SERVING)
+            | Q(status=QueueTicket.Status.COMPLETED)
+        ).order_by("-called_at", "-completed_at", "-created_at", "-id")[:10]
+
+        context.update(
+            {
+                "current_ticket": current_ticket,
+                "recent_called_tickets": recent_called_tickets,
+                "screen_services": services,
             }
         )
         return context
