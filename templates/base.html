@@ -914,9 +914,37 @@
             font-size: 1rem;
         }
 
+        .no-print {
+            display: block;
+        }
+
+        .print-card {
+            border: 1px dashed rgba(20, 33, 61, 0.18);
+        }
+
         .errorlist {
             padding-left: 18px;
             color: var(--warning);
+        }
+
+        @media print {
+            .no-print,
+            .button,
+            .button-form,
+            .messages,
+            .topbar {
+                display: none !important;
+            }
+
+            body,
+            .page,
+            .shell,
+            .card,
+            .print-card {
+                background: #fff !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
         }
 
         @media (max-width: 720px) {

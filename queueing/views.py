@@ -3,9 +3,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Count
 from django.contrib import messages
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
-from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView
+from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView
 
 from .forms import QueueCounterForm, QueueDisplayScreenForm, QueueServiceForm, QueueTicketGenerationForm
 from .models import QueueCounter, QueueDisplayScreen, QueueHistoryLog, QueueService, QueueSystemSetting, QueueTicket
@@ -94,12 +94,35 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
         kwargs["company"] = self.request.user.company
         return kwargs
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        service_id = self.request.GET.get("service")
+        selected_service = None
+        if service_id:
+            queryset = self._company_queryset(QueueService.objects.all())
+            selected_service = queryset.filter(pk=service_id).first()
+        context.update(
+            {
+                "selected_service": selected_service,
+                "can_edit_selected_service": bool(selected_service and self.request.user.can_manage_companies()),
+            }
+        )
+        return context
+
     def form_valid(self, form):
         service = form.cleaned_data["service"]
         is_priority = form.cleaned_data["is_priority"]
 
         with transaction.atomic():
             locked_service = QueueService.objects.select_for_update().get(pk=service.pk)
+            if not locked_service.is_active:
+                form.add_error("service", "This service is inactive and cannot generate tickets.")
+                messages.error(self.request, "This service is inactive and cannot generate tickets.")
+                return self.form_invalid(form)
+            if not locked_service.show_in_ticket_generation:
+                form.add_error("service", "This service is not available for ticket generation.")
+                messages.error(self.request, "This service is not available for ticket generation.")
+                return self.form_invalid(form)
             if locked_service.current_queue_number >= locked_service.max_queue_limit:
                 form.add_error("service", "Maximum queue limit reached for this service")
                 messages.error(self.request, "Maximum queue limit reached for this service")
@@ -108,7 +131,7 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
             locked_service.current_queue_number += 1
             locked_service.save(update_fields=["current_queue_number", "updated_at"])
 
-            queue_number = f"{locked_service.code}-{locked_service.current_queue_number:03d}"
+            queue_number = f"{locked_service.code}{locked_service.current_queue_number:03d}"
             ticket = QueueTicket.objects.create(
                 company=locked_service.company,
                 queue_number=queue_number,
@@ -125,7 +148,7 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
             )
 
         messages.success(self.request, f"Queue ticket {queue_number} created successfully.")
-        return redirect("queueing:ticket-create")
+        return redirect("queueing:ticket-success", pk=ticket.pk)
 
     def form_invalid(self, form):
         if form.non_field_errors():
@@ -133,6 +156,25 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
         else:
             messages.error(self.request, "Queue ticket creation failed. Please review the form and try again.")
         return super().form_invalid(form)
+
+
+class QueueTicketSuccessView(QueueingSetupMixin, DetailView):
+    model = QueueTicket
+    template_name = "queueing/ticket_success.html"
+    context_object_name = "ticket"
+
+    def get_queryset(self):
+        queryset = QueueTicket.objects.select_related("company", "service", "assigned_counter")
+        return self._company_queryset(queryset)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                "can_edit_service_settings": self.request.user.can_manage_companies(),
+            }
+        )
+        return context
 
 
 class QueueServiceListView(QueueingSetupMixin, ListView):

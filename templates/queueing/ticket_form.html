@@ -33,6 +33,11 @@
                 <h3>Queue Rules</h3>
                 <div class="stat">Validation</div>
                 <p>Only services that are active and marked to appear in ticket generation are shown here.</p>
+                {% if selected_service and can_edit_selected_service %}
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:service-update' selected_service.pk %}" class="button secondary">Edit Service Settings</a>
+                </div>
+                {% endif %}
                 <p>If the limit is reached, the message will be:</p>
                 <p><strong>Maximum queue limit reached for this service</strong></p>
             </div>

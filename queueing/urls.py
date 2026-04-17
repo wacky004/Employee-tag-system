@@ -11,6 +11,7 @@ from .views import (
     QueueServiceListView,
     QueueServiceUpdateView,
     QueueTicketCreateView,
+    QueueTicketSuccessView,
     QueueingDashboardView,
 )
 
@@ -22,6 +23,7 @@ urlpatterns = [
     path("services/create/", QueueServiceCreateView.as_view(), name="service-create"),
     path("services/<int:pk>/edit/", QueueServiceUpdateView.as_view(), name="service-update"),
     path("tickets/create/", QueueTicketCreateView.as_view(), name="ticket-create"),
+    path("tickets/<int:pk>/success/", QueueTicketSuccessView.as_view(), name="ticket-success"),
     path("counters/", QueueCounterListView.as_view(), name="counter-list"),
     path("counters/create/", QueueCounterCreateView.as_view(), name="counter-create"),
     path("counters/<int:pk>/edit/", QueueCounterUpdateView.as_view(), name="counter-update"),

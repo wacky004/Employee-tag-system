@@ -90,6 +90,12 @@ class QueueingSetupPageTests(TestCase):
             company=self.company,
             can_access_queueing=True,
         )
+        self.super_admin = User.objects.create_user(
+            username="queue-setup-root",
+            password="password123",
+            email="queue-setup-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+        )
         self.service = QueueService.objects.create(
             company=self.company,
             name="Registrar",
@@ -269,9 +275,11 @@ class QueueingSetupPageTests(TestCase):
             follow=True,
         )
         self.service.refresh_from_db()
-        ticket = QueueTicket.objects.get(service=self.service, queue_number="R-001")
+        ticket = QueueTicket.objects.get(service=self.service, queue_number="R001")
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Queue Ticket Generated")
+        self.assertContains(response, "R001")
         self.assertEqual(self.service.current_queue_number, 1)
         self.assertTrue(ticket.is_priority)
         self.assertTrue(
@@ -296,10 +304,27 @@ class QueueingSetupPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Maximum queue limit reached for this service")
-        self.assertFalse(QueueTicket.objects.filter(service=self.service, queue_number="R-001").exists())
+        self.assertFalse(QueueTicket.objects.filter(service=self.service, queue_number="R001").exists())
+
+    def test_admin_cannot_generate_ticket_for_inactive_service(self):
+        self.service.is_active = False
+        self.service.save(update_fields=["is_active"])
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("queueing:ticket-create"),
+            {
+                "service": self.service.id,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(QueueTicket.objects.filter(service=self.service).exists())
 
     def test_ticket_generation_only_shows_enabled_services(self):
-        hidden_service = QueueService.objects.create(
+        QueueService.objects.create(
             company=self.company,
             name="Pharmacy",
             code="P",
@@ -312,6 +337,32 @@ class QueueingSetupPageTests(TestCase):
 
         self.assertContains(response, "Registrar")
         self.assertNotContains(response, "Pharmacy")
+
+    def test_success_page_shows_service_edit_button_for_full_super_admin(self):
+        ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R001",
+            service=self.service,
+        )
+
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("queueing:ticket-success", kwargs={"pk": ticket.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("queueing:service-update", kwargs={"pk": self.service.pk}))
+
+    def test_success_page_hides_service_edit_button_for_admin(self):
+        ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R001",
+            service=self.service,
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:ticket-success", kwargs={"pk": ticket.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Edit Service Settings")
 
 
 class QueueingModelTests(TestCase):
