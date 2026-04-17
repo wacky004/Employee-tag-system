@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -101,20 +101,55 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
             screens = screens.filter(company=company)
             settings_record = QueueSystemSetting.objects.filter(company=company)
 
+        today = timezone.localdate()
+        pending_statuses = [
+            QueueTicket.Status.WAITING,
+            QueueTicket.Status.CALLED,
+            QueueTicket.Status.SERVING,
+        ]
+        service_summary = services.annotate(
+            total_today=Count("tickets", filter=Q(tickets__created_at__date=today)),
+            pending_total=Count("tickets", filter=Q(tickets__status__in=pending_statuses)),
+            skipped_total=Count("tickets", filter=Q(tickets__status=QueueTicket.Status.SKIPPED)),
+            completed_total=Count("tickets", filter=Q(tickets__status=QueueTicket.Status.COMPLETED)),
+            counter_total=Count("counters", filter=Q(counters__is_active=True), distinct=True),
+        ).order_by("-total_today", "name", "code")
+        active_queue_services = [service for service in service_summary if service.pending_total > 0]
+        reached_max_services = services.filter(
+            is_active=True,
+            current_queue_number__gte=F("max_queue_limit"),
+        ).order_by("name", "code")
+        busiest_service_today = next((service for service in service_summary if service.total_today > 0), None)
+        active_counters = counters.select_related("assigned_service").filter(is_active=True).order_by("name")
+        queue_history = QueueHistoryLog.objects.all()
+        if company:
+            queue_history = queue_history.filter(company=company)
+
         context.update(
             {
                 "organization_name": self.request.user.company.name if self.request.user.company_id else "AquiSo Platform",
                 "can_manage_organizations": self.request.user.can_manage_companies(),
+                "today": today,
                 "service_count": services.count(),
                 "counter_count": counters.count(),
                 "waiting_ticket_count": tickets.filter(status=QueueTicket.Status.WAITING).count(),
                 "display_screen_count": screens.count(),
-                "history_log_count": QueueHistoryLog.objects.filter(company=company).count() if company else QueueHistoryLog.objects.count(),
+                "history_log_count": queue_history.count(),
+                "total_queued_today": tickets.filter(created_at__date=today).count(),
+                "total_served_today": tickets.filter(called_at__date=today).exclude(status=QueueTicket.Status.WAITING).count(),
+                "total_pending": tickets.filter(status__in=pending_statuses).count(),
+                "total_skipped": tickets.filter(status=QueueTicket.Status.SKIPPED).count(),
+                "total_completed": tickets.filter(status=QueueTicket.Status.COMPLETED).count(),
                 "active_services": services.filter(is_active=True).order_by("name")[:5],
                 "ticket_generation_services": services.filter(
                     is_active=True,
                     show_in_ticket_generation=True,
                 ).order_by("name", "code")[:5],
+                "service_summary": service_summary,
+                "active_queue_services": active_queue_services,
+                "reached_max_services": reached_max_services,
+                "busiest_service_today": busiest_service_today,
+                "active_counters": active_counters[:8],
                 "ticket_status_rows": list(
                     tickets.values("status").annotate(total=Count("id")).order_by("status")
                 ),

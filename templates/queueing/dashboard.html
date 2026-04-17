@@ -8,10 +8,12 @@
         <div class="topbar">
             <div class="brand">
                 <h1>Queueing System</h1>
-                <p>{{ organization_name }}. Queueing now has setup pages for services, counters, and display screens inside AquiSo.</p>
+                <p>{{ organization_name }}. Monitor queue performance, service load, and live counter activity from one admin dashboard.</p>
             </div>
             <div class="actions">
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
+                <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
+                <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
                 {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
                 {% else %}
@@ -21,80 +23,75 @@
         </div>
 
         <section class="hero">
-            <h2>Queue setup is ready</h2>
-            <p>Manage queue services, counters, and display screens from dedicated setup pages without leaving the current web app.</p>
+            <h2>Queue analytics for {{ today|date:"F j, Y" }}</h2>
+            <p>Track queue demand, service throughput, pending load, and the busiest desks so admins can react faster during live operations.</p>
         </section>
 
         <div class="mini-grid">
             <div class="mini-card">
-                <h4>Services</h4>
-                <div class="value">{{ service_count }}</div>
+                <h4>Total Queued Today</h4>
+                <div class="value">{{ total_queued_today }}</div>
             </div>
             <div class="mini-card">
-                <h4>Counters</h4>
-                <div class="value">{{ counter_count }}</div>
+                <h4>Total Served Today</h4>
+                <div class="value">{{ total_served_today }}</div>
             </div>
             <div class="mini-card">
-                <h4>Waiting Tickets</h4>
-                <div class="value">{{ waiting_ticket_count }}</div>
+                <h4>Total Pending</h4>
+                <div class="value">{{ total_pending }}</div>
             </div>
             <div class="mini-card">
-                <h4>Display Screens</h4>
-                <div class="value">{{ display_screen_count }}</div>
+                <h4>Total Skipped</h4>
+                <div class="value">{{ total_skipped }}</div>
             </div>
             <div class="mini-card">
-                <h4>History Logs</h4>
-                <div class="value">{{ history_log_count }}</div>
+                <h4>Total Completed</h4>
+                <div class="value">{{ total_completed }}</div>
             </div>
         </div>
 
         <div class="grid" style="margin-top: 20px;">
             <div class="card">
-                <h3>Queue Services</h3>
-                <div class="stat">Setup</div>
-                <p>Create and edit queue services like Registrar, Cashier, and Pharmacy, including their service code prefixes, max queue limits, and ticket-generation visibility.</p>
+                <h3>Busiest Service Today</h3>
+                <div class="stat">Top Load</div>
+                {% if busiest_service_today %}
+                <p><strong>{{ busiest_service_today.name }}</strong> handled {{ busiest_service_today.total_today }} queued ticket{{ busiest_service_today.total_today|pluralize }} today.</p>
                 <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:service-list' %}" class="button">Manage Services</a>
-                    <a href="{% url 'queueing:service-create' %}" class="button secondary">Add Service</a>
+                    <a href="{% url 'queueing:service-update' busiest_service_today.pk %}" class="button">Edit Service</a>
                 </div>
+                {% else %}
+                <p>No queue activity has been recorded yet today.</p>
+                {% endif %}
             </div>
 
             <div class="card">
-                <h3>Queue Counters</h3>
-                <div class="stat">Assignment</div>
-                <p>Create counters, assign them to services, and keep counter setup aligned with each tenant's queue flow.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:counter-list' %}" class="button">Manage Counters</a>
-                    <a href="{% url 'queueing:counter-create' %}" class="button secondary">Add Counter</a>
+                <h3>Services At Max Queue</h3>
+                <div class="stat">Attention</div>
+                {% if reached_max_services %}
+                <div class="list">
+                    {% for service in reached_max_services %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ service.name }}</strong>
+                            <p>{{ service.code }} - {{ service.current_queue_number }}/{{ service.max_queue_limit }}</p>
+                        </div>
+                        <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a>
+                    </div>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <div class="empty-state">No services have reached their maximum queue limit.</div>
+                {% endif %}
             </div>
 
             <div class="card">
-                <h3>Display Screens</h3>
-                <div class="stat">Display</div>
-                <p>Create and edit display screen records so queue announcements and service displays can be wired in the next phases.</p>
+                <h3>Quick Access</h3>
+                <div class="stat">Actions</div>
+                <p>Jump straight to queue configuration and live controls.</p>
                 <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:display-screen-list' %}" class="button">Manage Screens</a>
-                    <a href="{% url 'queueing:display-screen-create' %}" class="button secondary">Add Screen</a>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Ticket Generation</h3>
-                <div class="stat">Live Input</div>
-                <p>Generate queue tickets only for services that are active, visible in ticket generation, and still below their max queue limit.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
-                    <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Queue History</h3>
-                <div class="stat">Audit Trail</div>
-                <p>Review queue actions like ticket creation, calls, skips, recalls, completions, and setup changes with professional filters.</p>
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:history-list' %}" class="button">View History</a>
+                    <a href="{% url 'queueing:service-list' %}" class="button">Services</a>
+                    <a href="{% url 'queueing:counter-list' %}" class="button secondary">Counters</a>
+                    <a href="{% url 'queueing:history-list' %}" class="button secondary">History</a>
                 </div>
             </div>
         </div>
@@ -102,69 +99,121 @@
         <div class="dashboard-grid" style="margin-top: 20px;">
             <div class="card">
                 <div class="section-head">
-                    <h3>Active Services</h3>
-                    <span class="badge">{{ active_services|length }}</span>
+                    <h3>Total Per Service</h3>
+                    <span class="badge">{{ service_summary|length }}</span>
                 </div>
-                {% if active_services %}
-                <div class="list">
-                    {% for service in active_services %}
-                    <div class="list-item">
-                        <div>
-                            <strong>{{ service.name }}</strong>
-                            <p>{{ service.code }} - Max {{ service.max_queue_limit }} - Current {{ service.current_queue_number }}</p>
-                        </div>
-                    </div>
-                    {% endfor %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Queued Today</th>
+                                <th>Pending</th>
+                                <th>Skipped</th>
+                                <th>Completed</th>
+                                <th>Counters</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for service in service_summary %}
+                            <tr>
+                                <td>
+                                    <strong>{{ service.name }}</strong>
+                                    <div class="muted">{{ service.code }} - {% if service.is_active %}Active{% else %}Inactive{% endif %}</div>
+                                </td>
+                                <td>{{ service.total_today }}</td>
+                                <td>{{ service.pending_total }}</td>
+                                <td>{{ service.skipped_total }}</td>
+                                <td>{{ service.completed_total }}</td>
+                                <td>{{ service.counter_total }}</td>
+                                <td><a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="muted">No queue services have been configured yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-                {% else %}
-                <div class="empty-state">No queue services have been configured yet.</div>
-                {% endif %}
             </div>
 
-            <div class="card">
-                <div class="section-head">
-                    <h3>Ticket Generation Services</h3>
-                    <span class="badge">{{ ticket_generation_services|length }}</span>
-                </div>
-                {% if ticket_generation_services %}
-                <div class="list">
-                    {% for service in ticket_generation_services %}
-                    <div class="list-item">
-                        <div>
-                            <strong>{{ service.name }}</strong>
-                            <p>{{ service.code }} - Limit {{ service.max_queue_limit }} - Active for ticket generation</p>
-                        </div>
+            <div class="stack">
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Current Active Queues By Service</h3>
+                        <span class="badge">{{ active_queue_services|length }}</span>
                     </div>
-                    {% endfor %}
+                    {% if active_queue_services %}
+                    <div class="list">
+                        {% for service in active_queue_services %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ service.name }}</strong>
+                                <p>{{ service.pending_total }} active queue{{ service.pending_total|pluralize }} right now</p>
+                            </div>
+                            <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No services currently have active queues.</div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="empty-state">No services are currently available for ticket generation.</div>
-                {% endif %}
-            </div>
 
-            <div class="card">
-                <div class="section-head">
-                    <h3>Queue Settings</h3>
-                    <span class="badge">{% if queue_settings %}Ready{% else %}Missing{% endif %}</span>
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Active Counters</h3>
+                        <span class="badge">{{ active_counters|length }}</span>
+                    </div>
+                    {% if active_counters %}
+                    <div class="list">
+                        {% for counter in active_counters %}
+                        <div class="list-item">
+                            <div>
+                                <strong>{{ counter.name }}</strong>
+                                <p>{% if counter.assigned_service %}{{ counter.assigned_service.name }}{% else %}Unassigned{% endif %}</p>
+                            </div>
+                            <a href="{% url 'queueing:counter-update' counter.pk %}" class="button ghost">Edit Counter</a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">No active counters have been configured yet.</div>
+                    {% endif %}
                 </div>
-                {% if queue_settings %}
-                <div class="list">
-                    <div class="list-item">
-                        <div>
-                            <strong>Queue Reset Policy</strong>
-                            <p>{{ queue_settings.get_queue_reset_policy_display }}</p>
+
+                <div class="card">
+                    <div class="section-head">
+                        <h3>Queue Settings</h3>
+                        <span class="badge">{% if queue_settings %}Ready{% else %}Missing{% endif %}</span>
+                    </div>
+                    {% if queue_settings %}
+                    <div class="list">
+                        <div class="list-item">
+                            <div>
+                                <strong>Queue Reset Policy</strong>
+                                <p>{{ queue_settings.get_queue_reset_policy_display }}</p>
+                            </div>
+                        </div>
+                        <div class="list-item">
+                            <div>
+                                <strong>Default Max Queue Per Service</strong>
+                                <p>{{ queue_settings.default_max_queue_per_service }}</p>
+                            </div>
+                        </div>
+                        <div class="list-item">
+                            <div>
+                                <strong>History Logs</strong>
+                                <p>{{ history_log_count }} recorded action{{ history_log_count|pluralize }}</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="list-item">
-                        <div>
-                            <strong>Default Max Queue Per Service</strong>
-                            <p>{{ queue_settings.default_max_queue_per_service }}</p>
-                        </div>
-                    </div>
+                    {% else %}
+                    <div class="empty-state">No queue system setting has been created yet.</div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="empty-state">No queue system setting has been created yet.</div>
-                {% endif %}
             </div>
         </div>
     </div>

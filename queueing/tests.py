@@ -45,6 +45,55 @@ class QueueingDashboardTests(TestCase):
             company=self.company,
             can_access_queueing=True,
         )
+        self.service = QueueService.objects.create(
+            company=self.company,
+            name="Registrar",
+            code="R",
+            max_queue_limit=2,
+            current_queue_number=2,
+        )
+        self.cashier = QueueService.objects.create(
+            company=self.company,
+            name="Cashier",
+            code="C",
+            max_queue_limit=10,
+            current_queue_number=3,
+        )
+        self.counter = QueueCounter.objects.create(
+            company=self.company,
+            name="Counter 1",
+            assigned_service=self.service,
+        )
+        now = timezone.now()
+        QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R001",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.WAITING,
+        )
+        QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R002",
+            service=self.service,
+            assigned_counter=self.counter,
+            status=QueueTicket.Status.CALLED,
+            called_at=now,
+        )
+        QueueTicket.objects.create(
+            company=self.company,
+            queue_number="C001",
+            service=self.cashier,
+            status=QueueTicket.Status.SKIPPED,
+        )
+        QueueTicket.objects.create(
+            company=self.company,
+            queue_number="C002",
+            service=self.cashier,
+            status=QueueTicket.Status.COMPLETED,
+            called_at=now,
+            completed_at=now,
+        )
 
     def test_full_super_admin_can_open_queueing_dashboard(self):
         self.client.force_login(self.full_super_admin)
@@ -74,6 +123,27 @@ class QueueingDashboardTests(TestCase):
         response = self.client.get(reverse("queueing:dashboard"))
 
         self.assertRedirects(response, reverse("accounts:manager-dashboard"))
+
+    def test_dashboard_shows_queue_analytics_and_edit_links(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Total Queued Today")
+        self.assertContains(response, "4")
+        self.assertContains(response, "Total Served Today")
+        self.assertContains(response, "2")
+        self.assertContains(response, "Total Pending")
+        self.assertContains(response, "2")
+        self.assertContains(response, "Total Skipped")
+        self.assertContains(response, "1")
+        self.assertContains(response, "Total Completed")
+        self.assertContains(response, "1")
+        self.assertContains(response, "Busiest Service Today")
+        self.assertContains(response, "Registrar")
+        self.assertContains(response, reverse("queueing:service-update", kwargs={"pk": self.service.pk}))
+        self.assertContains(response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
+        self.assertContains(response, "Services At Max Queue")
 
 
 class QueueingSetupPageTests(TestCase):
