@@ -13,6 +13,10 @@
             <div class="actions">
                 <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Back to Operator Panel</a>
                 <a href="{% url 'queueing:service-update' object.service.pk %}" class="button secondary">Edit Service</a>
+                {% if object.assigned_counter %}
+                <a href="{% url 'queueing:counter-update' object.assigned_counter.pk %}" class="button secondary">Edit Counter</a>
+                {% endif %}
+                <a href="{% url 'queueing:setting-list' %}" class="button secondary">Queue Settings</a>
             </div>
         </div>
 

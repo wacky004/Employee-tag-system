@@ -188,3 +188,37 @@ class QueueTicketUpdateForm(forms.ModelForm):
             counter_queryset = counter_queryset.filter(company=self.current_company)
         self.fields["service"].queryset = service_queryset
         self.fields["assigned_counter"].queryset = counter_queryset
+
+
+class QueueSystemSettingForm(QueueCompanyAwareFormMixin, forms.ModelForm):
+    display_settings = forms.JSONField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+    announcement_settings = forms.JSONField(required=False, widget=forms.Textarea(attrs={"rows": 4}))
+
+    class Meta:
+        model = QueueSystemSetting
+        fields = [
+            "company",
+            "queue_reset_policy",
+            "default_max_queue_per_service",
+            "display_settings",
+            "announcement_settings",
+        ]
+
+    def __init__(self, *args, company=None, can_manage_companies=False, **kwargs):
+        super().__init__(*args, company=company, can_manage_companies=can_manage_companies, **kwargs)
+        self.fields["display_settings"].help_text = "Optional JSON display options such as theme, layout, or ticker settings."
+        self.fields["announcement_settings"].help_text = "Optional JSON announcement settings such as voice or alert preferences."
+        if not self.instance.pk:
+            self.fields["display_settings"].initial = {}
+            self.fields["announcement_settings"].initial = {}
+
+    def clean(self):
+        cleaned_data = super().clean()
+        company = cleaned_data.get("company") or self.current_company
+        if company:
+            queryset = QueueSystemSetting.objects.filter(company=company)
+            if self.instance.pk:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                self.add_error("company", "Queue system settings already exist for this tenant.")
+        return cleaned_data

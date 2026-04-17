@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit Queue Settings{% else %}Add Queue Settings{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="shell">
+        <div class="topbar">
+            <div class="brand">
+                <h1>{% if object %}Edit Queue Settings{% else %}Add Queue Settings{% endif %}</h1>
+                <p>Update queue reset policy, default queue limits, display behavior, and announcement settings.</p>
+            </div>
+            <div class="actions">
+                <a href="{% url 'queueing:setting-list' %}" class="button secondary">Back to Queue Settings</a>
+                <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <div class="actions">
+                    <button type="submit" class="button">{% if object %}Update Queue Settings{% else %}Create Queue Settings{% endif %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

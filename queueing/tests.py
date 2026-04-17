@@ -333,6 +333,39 @@ class QueueingSetupPageTests(TestCase):
         self.assertFalse(self.screen.is_active)
         self.assertEqual(list(self.screen.services.values_list("id", flat=True)), [second_service.id])
 
+    def test_admin_can_create_and_edit_queue_system_settings(self):
+        self.client.force_login(self.admin)
+        create_response = self.client.post(
+            reverse("queueing:setting-create"),
+            {
+                "company": self.company.id,
+                "queue_reset_policy": QueueSystemSetting.QueueResetPolicy.DAILY,
+                "default_max_queue_per_service": 120,
+                "display_settings": '{"theme": "light"}',
+                "announcement_settings": '{"voice": "on"}',
+            },
+            follow=True,
+        )
+        settings_record = QueueSystemSetting.objects.get(company=self.company)
+        update_response = self.client.post(
+            reverse("queueing:setting-update", kwargs={"pk": settings_record.pk}),
+            {
+                "company": self.company.id,
+                "queue_reset_policy": QueueSystemSetting.QueueResetPolicy.MANUAL,
+                "default_max_queue_per_service": 150,
+                "display_settings": '{"theme": "dark"}',
+                "announcement_settings": '{"voice": "off"}',
+            },
+            follow=True,
+        )
+        settings_record.refresh_from_db()
+
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(settings_record.queue_reset_policy, QueueSystemSetting.QueueResetPolicy.MANUAL)
+        self.assertEqual(settings_record.default_max_queue_per_service, 150)
+        self.assertEqual(settings_record.display_settings["theme"], "dark")
+
     def test_setup_lists_show_edit_buttons(self):
         self.client.force_login(self.admin)
 
@@ -343,6 +376,29 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(service_response, reverse("queueing:service-update", kwargs={"pk": self.service.pk}))
         self.assertContains(counter_response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
         self.assertContains(screen_response, reverse("queueing:display-screen-update", kwargs={"pk": self.screen.pk}))
+
+    def test_dashboard_and_ticket_update_show_queue_settings_links(self):
+        settings_record = QueueSystemSetting.objects.create(
+            company=self.company,
+            queue_reset_policy=QueueSystemSetting.QueueResetPolicy.DAILY,
+            default_max_queue_per_service=100,
+            display_settings={"theme": "light"},
+            announcement_settings={"voice": "on"},
+        )
+        ticket = QueueTicket.objects.create(
+            company=self.company,
+            queue_number="R020",
+            service=self.service,
+            assigned_counter=self.counter,
+        )
+        self.client.force_login(self.admin)
+
+        dashboard_response = self.client.get(reverse("queueing:dashboard"))
+        update_response = self.client.get(reverse("queueing:ticket-update", kwargs={"pk": ticket.pk}))
+
+        self.assertContains(dashboard_response, reverse("queueing:setting-update", kwargs={"pk": settings_record.pk}))
+        self.assertContains(update_response, reverse("queueing:setting-list"))
+        self.assertContains(update_response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
 
     def test_display_screen_view_shows_current_and_recent_called_numbers(self):
         called_ticket = QueueTicket.objects.create(

@@ -75,7 +75,10 @@
                             <strong>{{ service.name }}</strong>
                             <p>{{ service.code }} - {{ service.current_queue_number }}/{{ service.max_queue_limit }}</p>
                         </div>
-                        <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a>
+                        <div class="actions" style="margin-top: 0;">
+                            <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a>
+                            <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Limit</a>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -91,6 +94,7 @@
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'queueing:service-list' %}" class="button">Services</a>
                     <a href="{% url 'queueing:counter-list' %}" class="button secondary">Counters</a>
+                    <a href="{% url 'queueing:setting-list' %}" class="button secondary">Queue Settings</a>
                     <a href="{% url 'queueing:history-list' %}" class="button secondary">History</a>
                 </div>
             </div>
@@ -127,7 +131,12 @@
                                 <td>{{ service.skipped_total }}</td>
                                 <td>{{ service.completed_total }}</td>
                                 <td>{{ service.counter_total }}</td>
-                                <td><a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a></td>
+                                <td>
+                                    <div class="actions" style="margin-top: 0;">
+                                        <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a>
+                                        <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Limits</a>
+                                    </div>
+                                </td>
                             </tr>
                             {% empty %}
                             <tr>
@@ -153,7 +162,10 @@
                                 <strong>{{ service.name }}</strong>
                                 <p>{{ service.pending_total }} active queue{{ service.pending_total|pluralize }} right now</p>
                             </div>
-                            <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a>
+                            <div class="actions" style="margin-top: 0;">
+                                <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a>
+                                <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Activation</a>
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
@@ -209,9 +221,15 @@
                                 <p>{{ history_log_count }} recorded action{{ history_log_count|pluralize }}</p>
                             </div>
                         </div>
+                        <div class="actions" style="margin-top: 16px;">
+                            <a href="{% url 'queueing:setting-update' queue_settings.pk %}" class="button">Edit Queue Settings</a>
+                        </div>
                     </div>
                     {% else %}
                     <div class="empty-state">No queue system setting has been created yet.</div>
+                    <div class="actions" style="margin-top: 16px;">
+                        <a href="{% url 'queueing:setting-create' %}" class="button">Add Queue Settings</a>
+                    </div>
                     {% endif %}
                 </div>
             </div>

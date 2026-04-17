@@ -12,6 +12,7 @@
             </div>
             <div class="actions">
                 <a href="{% url 'queueing:display-screen-list' %}" class="button secondary">Back to Display Screens</a>
+                <a href="{% url 'queueing:setting-list' %}" class="button secondary">Queue Settings</a>
                 {% if object %}
                 <a href="{% url 'queueing:display-screen-view' object.slug %}" class="button secondary" target="_blank" rel="noopener">Open Display</a>
                 {% endif %}

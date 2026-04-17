@@ -13,6 +13,7 @@ from .forms import (
     QueueCounterForm,
     QueueDisplayScreenForm,
     QueueServiceForm,
+    QueueSystemSettingForm,
     QueueTicketGenerationForm,
     QueueTicketUpdateForm,
 )
@@ -157,6 +158,64 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
             }
         )
         return context
+
+
+class QueueSystemSettingListView(QueueingSetupMixin, ListView):
+    model = QueueSystemSetting
+    template_name = "queueing/setting_list.html"
+    context_object_name = "settings_records"
+
+    def get_queryset(self):
+        queryset = QueueSystemSetting.objects.select_related("company").order_by("company__name")
+        return self._company_queryset(queryset)
+
+
+class QueueSystemSettingCreateView(QueueingSetupMixin, CreateView):
+    model = QueueSystemSetting
+    form_class = QueueSystemSettingForm
+    template_name = "queueing/setting_form.html"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.update(self._form_kwargs())
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, "Queue system settings created successfully.")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, "Queue system settings creation failed. Please review the form and try again.")
+        return super().form_invalid(form)
+
+    def get_success_url(self):
+        return reverse("queueing:setting-list")
+
+
+class QueueSystemSettingUpdateView(QueueingSetupMixin, UpdateView):
+    model = QueueSystemSetting
+    form_class = QueueSystemSettingForm
+    template_name = "queueing/setting_form.html"
+
+    def get_queryset(self):
+        queryset = QueueSystemSetting.objects.select_related("company")
+        return self._company_queryset(queryset)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.update(self._form_kwargs())
+        return kwargs
+
+    def form_valid(self, form):
+        messages.success(self.request, "Queue system settings updated successfully.")
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, "Queue system settings update failed. Please review the form and try again.")
+        return super().form_invalid(form)
+
+    def get_success_url(self):
+        return reverse("queueing:setting-list")
 
 
 class QueueTicketCreateView(QueueingSetupMixin, FormView):
