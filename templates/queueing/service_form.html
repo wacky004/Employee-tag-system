@@ -25,6 +25,14 @@
                     <button type="submit" class="button">{% if object %}Update Service{% else %}Create Service{% endif %}</button>
                 </div>
             </form>
+            {% if object %}
+            <form method="post" action="{% url 'queueing:service-delete' object.pk %}" style="margin-top: 16px;">
+                {% csrf_token %}
+                <div class="actions">
+                    <button type="submit" class="button secondary">Delete Service</button>
+                </div>
+            </form>
+            {% endif %}
         </div>
     </div>
 </div>

@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.views import View
 from django.views.generic import CreateView, DetailView, FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
@@ -51,6 +52,11 @@ class QueueingSetupMixin(QueueingAccessMixin):
             "company": self.request.user.company,
             "can_manage_companies": self.request.user.can_manage_companies(),
         }
+
+
+class QueueingSuperAdminAccessMixin(QueueingSetupMixin):
+    def test_func(self):
+        return super().test_func() and self.request.user.role == User.Role.SUPER_ADMIN
 
 
 def _log_queue_action(*, actor, action, ticket=None, notes="", counter=None, service=None, company=None, status_snapshot=""):
@@ -130,6 +136,7 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
             {
                 "organization_name": self.request.user.company.name if self.request.user.company_id else "AquiSo Platform",
                 "can_manage_organizations": self.request.user.can_manage_companies(),
+                "can_manage_queue_setup": self.request.user.role == User.Role.SUPER_ADMIN,
                 "today": today,
                 "service_count": services.count(),
                 "counter_count": counters.count(),
@@ -160,7 +167,7 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
         return context
 
 
-class QueueSystemSettingListView(QueueingSetupMixin, ListView):
+class QueueSystemSettingListView(QueueingSuperAdminAccessMixin, ListView):
     model = QueueSystemSetting
     template_name = "queueing/setting_list.html"
     context_object_name = "settings_records"
@@ -170,7 +177,7 @@ class QueueSystemSettingListView(QueueingSetupMixin, ListView):
         return self._company_queryset(queryset)
 
 
-class QueueSystemSettingCreateView(QueueingSetupMixin, CreateView):
+class QueueSystemSettingCreateView(QueueingSuperAdminAccessMixin, CreateView):
     model = QueueSystemSetting
     form_class = QueueSystemSettingForm
     template_name = "queueing/setting_form.html"
@@ -192,7 +199,7 @@ class QueueSystemSettingCreateView(QueueingSetupMixin, CreateView):
         return reverse("queueing:setting-list")
 
 
-class QueueSystemSettingUpdateView(QueueingSetupMixin, UpdateView):
+class QueueSystemSettingUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
     model = QueueSystemSetting
     form_class = QueueSystemSettingForm
     template_name = "queueing/setting_form.html"
@@ -237,7 +244,7 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
         context.update(
             {
                 "selected_service": selected_service,
-                "can_edit_selected_service": bool(selected_service and self.request.user.can_manage_companies()),
+                "can_edit_selected_service": bool(selected_service and self.request.user.role == User.Role.SUPER_ADMIN),
             }
         )
         return context
@@ -302,7 +309,7 @@ class QueueTicketSuccessView(QueueingSetupMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context.update(
             {
-                "can_edit_service_settings": self.request.user.can_manage_companies(),
+                "can_edit_service_settings": self.request.user.role == User.Role.SUPER_ADMIN,
             }
         )
         return context
@@ -489,7 +496,7 @@ class QueueOperatorPanelView(QueueingSetupMixin, TemplateView):
         return redirect("queueing:operator-panel")
 
 
-class QueueServiceListView(QueueingSetupMixin, ListView):
+class QueueServiceListView(QueueingSuperAdminAccessMixin, ListView):
     model = QueueService
     template_name = "queueing/service_list.html"
     context_object_name = "services"
@@ -499,7 +506,7 @@ class QueueServiceListView(QueueingSetupMixin, ListView):
         return self._company_queryset(queryset)
 
 
-class QueueServiceCreateView(QueueingSetupMixin, CreateView):
+class QueueServiceCreateView(QueueingSuperAdminAccessMixin, CreateView):
     model = QueueService
     form_class = QueueServiceForm
     template_name = "queueing/service_form.html"
@@ -521,7 +528,7 @@ class QueueServiceCreateView(QueueingSetupMixin, CreateView):
         return reverse("queueing:service-list")
 
 
-class QueueServiceUpdateView(QueueingSetupMixin, UpdateView):
+class QueueServiceUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
     model = QueueService
     form_class = QueueServiceForm
     template_name = "queueing/service_form.html"
@@ -562,6 +569,25 @@ class QueueServiceUpdateView(QueueingSetupMixin, UpdateView):
 
     def get_success_url(self):
         return reverse("queueing:service-list")
+
+
+class QueueServiceDeleteView(QueueingSuperAdminAccessMixin, View):
+    def post(self, request, *args, **kwargs):
+        service = get_object_or_404(
+            self._company_queryset(QueueService.objects.all()),
+            pk=kwargs["pk"],
+        )
+        if service.tickets.exists() or service.counters.exists() or service.display_screens.exists():
+            messages.error(
+                request,
+                "Queue service cannot be deleted while it is linked to tickets, counters, or display screens.",
+            )
+            return redirect("queueing:service-update", pk=service.pk)
+
+        service_name = service.name
+        service.delete()
+        messages.success(request, f"Queue service {service_name} deleted successfully.")
+        return redirect("queueing:service-list")
 
 
 class QueueTicketUpdateView(QueueingSetupMixin, UpdateView):
@@ -637,7 +663,7 @@ class QueueTicketUpdateView(QueueingSetupMixin, UpdateView):
         return reverse("queueing:operator-panel")
 
 
-class QueueCounterListView(QueueingSetupMixin, ListView):
+class QueueCounterListView(QueueingSuperAdminAccessMixin, ListView):
     model = QueueCounter
     template_name = "queueing/counter_list.html"
     context_object_name = "counters"
@@ -647,7 +673,7 @@ class QueueCounterListView(QueueingSetupMixin, ListView):
         return self._company_queryset(queryset)
 
 
-class QueueCounterCreateView(QueueingSetupMixin, CreateView):
+class QueueCounterCreateView(QueueingSuperAdminAccessMixin, CreateView):
     model = QueueCounter
     form_class = QueueCounterForm
     template_name = "queueing/counter_form.html"
@@ -669,7 +695,7 @@ class QueueCounterCreateView(QueueingSetupMixin, CreateView):
         return reverse("queueing:counter-list")
 
 
-class QueueCounterUpdateView(QueueingSetupMixin, UpdateView):
+class QueueCounterUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
     model = QueueCounter
     form_class = QueueCounterForm
     template_name = "queueing/counter_form.html"
@@ -710,7 +736,7 @@ class QueueCounterUpdateView(QueueingSetupMixin, UpdateView):
         return reverse("queueing:counter-list")
 
 
-class QueueDisplayScreenListView(QueueingSetupMixin, ListView):
+class QueueDisplayScreenListView(QueueingSuperAdminAccessMixin, ListView):
     model = QueueDisplayScreen
     template_name = "queueing/display_screen_list.html"
     context_object_name = "screens"
@@ -720,7 +746,7 @@ class QueueDisplayScreenListView(QueueingSetupMixin, ListView):
         return self._company_queryset(queryset)
 
 
-class QueueDisplayScreenCreateView(QueueingSetupMixin, CreateView):
+class QueueDisplayScreenCreateView(QueueingSuperAdminAccessMixin, CreateView):
     model = QueueDisplayScreen
     form_class = QueueDisplayScreenForm
     template_name = "queueing/display_screen_form.html"
@@ -742,7 +768,7 @@ class QueueDisplayScreenCreateView(QueueingSetupMixin, CreateView):
         return reverse("queueing:display-screen-list")
 
 
-class QueueDisplayScreenUpdateView(QueueingSetupMixin, UpdateView):
+class QueueDisplayScreenUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
     model = QueueDisplayScreen
     form_class = QueueDisplayScreenForm
     template_name = "queueing/display_screen_form.html"
@@ -768,7 +794,7 @@ class QueueDisplayScreenUpdateView(QueueingSetupMixin, UpdateView):
         return reverse("queueing:display-screen-list")
 
 
-class QueueHistoryListView(QueueingSetupMixin, ListView):
+class QueueHistoryListView(QueueingSuperAdminAccessMixin, ListView):
     model = QueueHistoryLog
     template_name = "queueing/history_list.html"
     context_object_name = "history_logs"

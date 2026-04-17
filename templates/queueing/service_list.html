@@ -51,7 +51,15 @@
                             <td>{% if service.show_in_ticket_generation %}Visible{% else %}Hidden{% endif %}</td>
                             <td>{% if service.is_active %}Active{% else %}Inactive{% endif %}</td>
                             <td>{{ service.company.name }}</td>
-                            <td><a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a></td>
+                            <td>
+                                <div class="actions" style="margin-top: 0;">
+                                    <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit</a>
+                                    <form method="post" action="{% url 'queueing:service-delete' service.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="button secondary">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>

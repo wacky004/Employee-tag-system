@@ -124,8 +124,8 @@ class QueueingDashboardTests(TestCase):
 
         self.assertRedirects(response, reverse("accounts:manager-dashboard"))
 
-    def test_dashboard_shows_queue_analytics_and_edit_links(self):
-        self.client.force_login(self.admin)
+    def test_dashboard_shows_queue_analytics_and_edit_links_for_superadmin(self):
+        self.client.force_login(self.full_super_admin)
         response = self.client.get(reverse("queueing:dashboard"))
 
         self.assertEqual(response.status_code, 200)
@@ -144,6 +144,16 @@ class QueueingDashboardTests(TestCase):
         self.assertContains(response, reverse("queueing:service-update", kwargs={"pk": self.service.pk}))
         self.assertContains(response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
         self.assertContains(response, "Services At Max Queue")
+
+    def test_admin_dashboard_hides_superadmin_only_queue_setup_links(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, reverse("queueing:service-list"))
+        self.assertNotContains(response, reverse("queueing:counter-list"))
+        self.assertNotContains(response, reverse("queueing:setting-list"))
+        self.assertNotContains(response, reverse("queueing:history-list"))
 
 
 class QueueingSetupPageTests(TestCase):
@@ -187,7 +197,7 @@ class QueueingSetupPageTests(TestCase):
         self.screen.services.add(self.service)
 
     def test_admin_can_create_edit_and_deactivate_queue_service(self):
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         create_response = self.client.post(
             reverse("queueing:service-create"),
             {
@@ -230,7 +240,7 @@ class QueueingSetupPageTests(TestCase):
         self.assertFalse(self.service.show_in_ticket_generation)
 
     def test_service_create_blocks_duplicate_service_codes(self):
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         response = self.client.post(
             reverse("queueing:service-create"),
             {
@@ -256,7 +266,7 @@ class QueueingSetupPageTests(TestCase):
             code="P",
             max_queue_limit=30,
         )
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         create_response = self.client.post(
             reverse("queueing:counter-create"),
             {
@@ -295,7 +305,7 @@ class QueueingSetupPageTests(TestCase):
             code="C",
             max_queue_limit=40,
         )
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         create_response = self.client.post(
             reverse("queueing:display-screen-create"),
             {
@@ -334,7 +344,7 @@ class QueueingSetupPageTests(TestCase):
         self.assertEqual(list(self.screen.services.values_list("id", flat=True)), [second_service.id])
 
     def test_admin_can_create_and_edit_queue_system_settings(self):
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         create_response = self.client.post(
             reverse("queueing:setting-create"),
             {
@@ -367,7 +377,7 @@ class QueueingSetupPageTests(TestCase):
         self.assertEqual(settings_record.display_settings["theme"], "dark")
 
     def test_setup_lists_show_edit_buttons(self):
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
 
         service_response = self.client.get(reverse("queueing:service-list"))
         counter_response = self.client.get(reverse("queueing:counter-list"))
@@ -377,7 +387,51 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(counter_response, reverse("queueing:counter-update", kwargs={"pk": self.counter.pk}))
         self.assertContains(screen_response, reverse("queueing:display-screen-update", kwargs={"pk": self.screen.pk}))
 
-    def test_dashboard_and_ticket_update_show_queue_settings_links(self):
+    def test_admin_is_blocked_from_superadmin_only_queue_setup_pages(self):
+        self.client.force_login(self.admin)
+
+        service_response = self.client.get(reverse("queueing:service-list"))
+        counter_response = self.client.get(reverse("queueing:counter-list"))
+        screen_response = self.client.get(reverse("queueing:display-screen-list"))
+        setting_response = self.client.get(reverse("queueing:setting-list"))
+        history_response = self.client.get(reverse("queueing:history-list"))
+        delete_response = self.client.post(reverse("queueing:service-delete", kwargs={"pk": self.service.pk}), follow=True)
+
+        self.assertRedirects(service_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(counter_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(screen_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(setting_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(history_response, reverse("accounts:manager-dashboard"))
+        self.assertRedirects(delete_response, reverse("accounts:manager-dashboard"))
+
+    def test_superadmin_can_delete_unused_queue_service(self):
+        removable_service = QueueService.objects.create(
+            company=self.company,
+            name="Unused Service",
+            code="U",
+            max_queue_limit=20,
+        )
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("queueing:service-delete", kwargs={"pk": removable_service.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(QueueService.objects.filter(pk=removable_service.pk).exists())
+
+    def test_superadmin_cannot_delete_service_with_related_records(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.post(
+            reverse("queueing:service-delete", kwargs={"pk": self.service.pk}),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(QueueService.objects.filter(pk=self.service.pk).exists())
+        self.assertContains(response, "Queue service cannot be deleted while it is linked")
+
+    def test_superadmin_dashboard_and_ticket_update_show_queue_settings_links(self):
         settings_record = QueueSystemSetting.objects.create(
             company=self.company,
             queue_reset_policy=QueueSystemSetting.QueueResetPolicy.DAILY,
@@ -385,13 +439,21 @@ class QueueingSetupPageTests(TestCase):
             display_settings={"theme": "light"},
             announcement_settings={"voice": "on"},
         )
+        tenant_super_admin = User.objects.create_user(
+            username="queue-tenant-root",
+            password="password123",
+            email="queue-tenant-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+            company=self.company,
+            can_access_queueing=True,
+        )
         ticket = QueueTicket.objects.create(
             company=self.company,
             queue_number="R020",
             service=self.service,
             assigned_counter=self.counter,
         )
-        self.client.force_login(self.admin)
+        self.client.force_login(tenant_super_admin)
 
         dashboard_response = self.client.get(reverse("queueing:dashboard"))
         update_response = self.client.get(reverse("queueing:ticket-update", kwargs={"pk": ticket.pk}))
@@ -699,7 +761,7 @@ class QueueingSetupPageTests(TestCase):
         )
 
     def test_service_and_counter_updates_create_history_logs(self):
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
 
         service_response = self.client.post(
             reverse("queueing:service-update", kwargs={"pk": self.service.pk}),
@@ -792,7 +854,7 @@ class QueueingSetupPageTests(TestCase):
             notes="Skipped in queue.",
         )
 
-        self.client.force_login(self.admin)
+        self.client.force_login(self.super_admin)
         response = self.client.get(
             reverse("queueing:history-list"),
             {

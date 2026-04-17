@@ -14,6 +14,9 @@
                 <div class="user-chip">{{ request.user.get_full_name|default:request.user.username }} - {{ request.user.get_role_display }}</div>
                 <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
                 <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Operator Panel</a>
+                {% if can_manage_queue_setup %}
+                <a href="{% url 'queueing:history-list' %}" class="button secondary">History</a>
+                {% endif %}
                 {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'accounts:super-admin-dashboard' %}" class="button secondary">Back to Super Admin</a>
                 {% else %}
@@ -56,14 +59,17 @@
                 <div class="stat">Top Load</div>
                 {% if busiest_service_today %}
                 <p><strong>{{ busiest_service_today.name }}</strong> handled {{ busiest_service_today.total_today }} queued ticket{{ busiest_service_today.total_today|pluralize }} today.</p>
+                {% if can_manage_queue_setup %}
                 <div class="actions" style="margin-top: 16px;">
                     <a href="{% url 'queueing:service-update' busiest_service_today.pk %}" class="button">Edit Service</a>
                 </div>
+                {% endif %}
                 {% else %}
                 <p>No queue activity has been recorded yet today.</p>
                 {% endif %}
             </div>
 
+            {% if can_manage_queue_setup %}
             <div class="card">
                 <h3>Services At Max Queue</h3>
                 <div class="stat">Attention</div>
@@ -86,21 +92,28 @@
                 <div class="empty-state">No services have reached their maximum queue limit.</div>
                 {% endif %}
             </div>
+            {% endif %}
 
             <div class="card">
                 <h3>Quick Access</h3>
                 <div class="stat">Actions</div>
                 <p>Jump straight to queue configuration and live controls.</p>
                 <div class="actions" style="margin-top: 16px;">
+                    {% if can_manage_queue_setup %}
                     <a href="{% url 'queueing:service-list' %}" class="button">Services</a>
                     <a href="{% url 'queueing:counter-list' %}" class="button secondary">Counters</a>
                     <a href="{% url 'queueing:setting-list' %}" class="button secondary">Queue Settings</a>
                     <a href="{% url 'queueing:history-list' %}" class="button secondary">History</a>
+                    {% else %}
+                    <a href="{% url 'queueing:ticket-create' %}" class="button">Generate Ticket</a>
+                    <a href="{% url 'queueing:operator-panel' %}" class="button secondary">Queue Flow</a>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
         <div class="dashboard-grid" style="margin-top: 20px;">
+            {% if can_manage_queue_setup %}
             <div class="card">
                 <div class="section-head">
                     <h3>Total Per Service</h3>
@@ -147,6 +160,7 @@
                     </table>
                 </div>
             </div>
+            {% endif %}
 
             <div class="stack">
                 <div class="card">
@@ -162,10 +176,12 @@
                                 <strong>{{ service.name }}</strong>
                                 <p>{{ service.pending_total }} active queue{{ service.pending_total|pluralize }} right now</p>
                             </div>
+                            {% if can_manage_queue_setup %}
                             <div class="actions" style="margin-top: 0;">
                                 <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Edit Service</a>
                                 <a href="{% url 'queueing:service-update' service.pk %}" class="button ghost">Activation</a>
                             </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -187,7 +203,9 @@
                                 <strong>{{ counter.name }}</strong>
                                 <p>{% if counter.assigned_service %}{{ counter.assigned_service.name }}{% else %}Unassigned{% endif %}</p>
                             </div>
+                            {% if can_manage_queue_setup %}
                             <a href="{% url 'queueing:counter-update' counter.pk %}" class="button ghost">Edit Counter</a>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -221,15 +239,19 @@
                                 <p>{{ history_log_count }} recorded action{{ history_log_count|pluralize }}</p>
                             </div>
                         </div>
+                        {% if can_manage_queue_setup %}
                         <div class="actions" style="margin-top: 16px;">
                             <a href="{% url 'queueing:setting-update' queue_settings.pk %}" class="button">Edit Queue Settings</a>
                         </div>
+                        {% endif %}
                     </div>
                     {% else %}
                     <div class="empty-state">No queue system setting has been created yet.</div>
+                    {% if can_manage_queue_setup %}
                     <div class="actions" style="margin-top: 16px;">
                         <a href="{% url 'queueing:setting-create' %}" class="button">Add Queue Settings</a>
                     </div>
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>

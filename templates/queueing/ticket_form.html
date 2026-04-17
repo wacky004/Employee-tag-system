@@ -11,7 +11,9 @@
                 <p>Create a new queue ticket for an active service that is enabled for ticket generation.</p>
             </div>
             <div class="actions">
+                {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'queueing:service-list' %}" class="button secondary">Queue Services</a>
+                {% endif %}
                 <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
             </div>
         </div>
@@ -33,11 +35,11 @@
                 <h3>Queue Rules</h3>
                 <div class="stat">Validation</div>
                 <p>Only services that are active and marked to appear in ticket generation are shown here.</p>
-                {% if selected_service and can_edit_selected_service %}
-                <div class="actions" style="margin-top: 16px;">
-                    <a href="{% url 'queueing:service-update' selected_service.pk %}" class="button secondary">Edit Service Settings</a>
-                </div>
-                {% endif %}
+            {% if selected_service and can_edit_selected_service %}
+            <div class="actions" style="margin-top: 16px;">
+                <a href="{% url 'queueing:service-update' selected_service.pk %}" class="button secondary">Edit Service Settings</a>
+            </div>
+            {% endif %}
                 <p>If the limit is reached, the message will be:</p>
                 <p><strong>Maximum queue limit reached for this service</strong></p>
             </div>

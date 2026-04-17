@@ -11,7 +11,9 @@
                 <p>Manage the active queue flow, call tickets, mark status changes, and correct queue assignments when needed.</p>
             </div>
             <div class="actions">
+                {% if request.user.role == "SUPER_ADMIN" %}
                 <a href="{% url 'queueing:history-list' %}" class="button secondary">Queue History</a>
+                {% endif %}
                 <a href="{% url 'queueing:ticket-create' %}" class="button secondary">Generate Ticket</a>
                 <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
             </div>
