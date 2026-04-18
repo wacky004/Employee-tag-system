@@ -70,9 +70,14 @@ class QueueServiceAdmin(PlatformQueueingAdminMixin, admin.ModelAdmin):
 
 @admin.register(QueueCounter)
 class QueueCounterAdmin(PlatformQueueingAdminMixin, admin.ModelAdmin):
-    list_display = ("name", "company", "assigned_service", "is_active")
-    search_fields = ("name", "company__name", "assigned_service__name")
+    list_display = ("name", "company", "assigned_services_display", "is_active")
+    search_fields = ("name", "company__name", "assigned_services__name")
     list_filter = ("company", "is_active")
+    filter_horizontal = ("assigned_services",)
+
+    @admin.display(description="Assigned Services")
+    def assigned_services_display(self, obj):
+        return obj.assigned_services_label
 
 
 @admin.register(QueueTicket)

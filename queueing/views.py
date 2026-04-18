@@ -89,6 +89,25 @@ def _summarize_changes(field_labels, previous_object, current_object):
     return "; ".join(changes) if changes else "Updated from the queue setup page."
 
 
+def _service_names_for_counter(counter):
+    return list(counter.assigned_services.order_by("name", "code").values_list("name", flat=True))
+
+
+def _summarize_counter_changes(previous_counter, current_counter):
+    changes = []
+    if previous_counter.name != current_counter.name:
+        changes.append(f"Name: {previous_counter.name or '-'} -> {current_counter.name or '-'}")
+    previous_services = _service_names_for_counter(previous_counter)
+    current_services = _service_names_for_counter(current_counter)
+    if previous_services != current_services:
+        previous_label = ", ".join(previous_services) if previous_services else "-"
+        current_label = ", ".join(current_services) if current_services else "-"
+        changes.append(f"Assigned Services: {previous_label} -> {current_label}")
+    if previous_counter.is_active != current_counter.is_active:
+        changes.append(f"Active: {previous_counter.is_active} -> {current_counter.is_active}")
+    return "; ".join(changes) if changes else "Updated from the queue setup page."
+
+
 class QueueingDashboardView(QueueingAccessMixin, TemplateView):
     template_name = "queueing/dashboard.html"
 
@@ -127,7 +146,7 @@ class QueueingDashboardView(QueueingAccessMixin, TemplateView):
             current_queue_number__gte=F("max_queue_limit"),
         ).order_by("name", "code")
         busiest_service_today = next((service for service in service_summary if service.total_today > 0), None)
-        active_counters = counters.select_related("assigned_service").filter(is_active=True).order_by("name")
+        active_counters = counters.prefetch_related("assigned_services").filter(is_active=True).order_by("name")
         queue_history = QueueHistoryLog.objects.all()
         if company:
             queue_history = queue_history.filter(company=company)
@@ -743,7 +762,7 @@ class QueueCounterListView(QueueingSuperAdminAccessMixin, ListView):
     context_object_name = "counters"
 
     def get_queryset(self):
-        queryset = QueueCounter.objects.select_related("company", "assigned_service").order_by("name")
+        queryset = QueueCounter.objects.select_related("company").prefetch_related("assigned_services").order_by("name")
         return self._company_queryset(queryset)
 
 
@@ -775,7 +794,7 @@ class QueueCounterUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
     template_name = "queueing/counter_form.html"
 
     def get_queryset(self):
-        queryset = QueueCounter.objects.select_related("company", "assigned_service")
+        queryset = QueueCounter.objects.select_related("company").prefetch_related("assigned_services")
         return self._company_queryset(queryset)
 
     def get_form_kwargs(self):
@@ -784,20 +803,15 @@ class QueueCounterUpdateView(QueueingSuperAdminAccessMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
-        original = QueueCounter.objects.get(pk=self.get_object().pk)
-        field_labels = [
-            ("name", "Name"),
-            ("assigned_service", "Assigned Service"),
-            ("is_active", "Active"),
-        ]
+        original = QueueCounter.objects.prefetch_related("assigned_services").get(pk=self.get_object().pk)
         response = super().form_valid(form)
         _log_queue_action(
             actor=self.request.user,
             action=QueueHistoryLog.Action.COUNTER_UPDATED,
             company=self.object.company,
-            service=self.object.assigned_service,
+            service=self.object.primary_assigned_service,
             counter=self.object,
-            notes=_summarize_changes(field_labels, original, self.object),
+            notes=_summarize_counter_changes(original, self.object),
         )
         messages.success(self.request, "Queue counter updated successfully.")
         return response

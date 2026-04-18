@@ -62,8 +62,8 @@ class QueueingDashboardTests(TestCase):
         self.counter = QueueCounter.objects.create(
             company=self.company,
             name="Counter 1",
-            assigned_service=self.service,
         )
+        self.counter.assigned_services.add(self.service)
         now = timezone.now()
         QueueTicket.objects.create(
             company=self.company,
@@ -198,8 +198,8 @@ class QueueingSetupPageTests(TestCase):
         self.counter = QueueCounter.objects.create(
             company=self.company,
             name="Counter 1",
-            assigned_service=self.service,
         )
+        self.counter.assigned_services.add(self.service)
         self.screen = QueueDisplayScreen.objects.create(
             company=self.company,
             name="Main Screen",
@@ -284,7 +284,7 @@ class QueueingSetupPageTests(TestCase):
             {
                 "company": self.company.id,
                 "name": "Counter 2",
-                "assigned_service": other_service.id,
+                "assigned_services": [other_service.id],
                 "is_active": "on",
             },
             follow=True,
@@ -296,7 +296,7 @@ class QueueingSetupPageTests(TestCase):
             {
                 "company": self.company.id,
                 "name": "Front Desk Counter",
-                "assigned_service": other_service.id,
+                "assigned_services": [self.service.id, other_service.id],
                 "is_active": "",
             },
             follow=True,
@@ -304,10 +304,13 @@ class QueueingSetupPageTests(TestCase):
         self.counter.refresh_from_db()
 
         self.assertEqual(create_response.status_code, 200)
-        self.assertEqual(created_counter.assigned_service, other_service)
+        self.assertEqual(list(created_counter.assigned_services.all()), [other_service])
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(self.counter.name, "Front Desk Counter")
-        self.assertEqual(self.counter.assigned_service, other_service)
+        self.assertEqual(
+            list(self.counter.assigned_services.order_by("name", "code")),
+            [other_service, self.service],
+        )
         self.assertFalse(self.counter.is_active)
 
     def test_admin_can_create_and_edit_display_screen(self):
@@ -782,8 +785,8 @@ class QueueingSetupPageTests(TestCase):
         other_counter = QueueCounter.objects.create(
             company=self.company,
             name="Counter 2",
-            assigned_service=other_service,
         )
+        other_counter.assigned_services.add(other_service)
         ticket = QueueTicket.objects.create(
             company=self.company,
             queue_number="R005",
@@ -839,7 +842,7 @@ class QueueingSetupPageTests(TestCase):
             {
                 "company": self.company.id,
                 "name": "Counter A",
-                "assigned_service": self.service.id,
+                "assigned_services": [self.service.id],
                 "is_active": "on",
             },
             follow=True,
@@ -872,8 +875,8 @@ class QueueingSetupPageTests(TestCase):
         other_counter = QueueCounter.objects.create(
             company=self.company,
             name="Counter 2",
-            assigned_service=other_service,
         )
+        other_counter.assigned_services.add(other_service)
         ticket_one = QueueTicket.objects.create(
             company=self.company,
             queue_number="R010",
@@ -953,8 +956,8 @@ class QueueingModelTests(TestCase):
         self.counter = QueueCounter.objects.create(
             company=self.company,
             name="Counter 1",
-            assigned_service=self.service,
         )
+        self.counter.assigned_services.add(self.service)
         self.ticket = QueueTicket.objects.create(
             company=self.company,
             queue_number="R-019",
@@ -992,7 +995,7 @@ class QueueingModelTests(TestCase):
         self.assertEqual(self.service.max_queue_limit, 250)
         self.assertTrue(self.service.allow_priority)
         self.assertTrue(self.service.show_in_ticket_generation)
-        self.assertEqual(self.counter.assigned_service, self.service)
+        self.assertEqual(list(self.counter.assigned_services.all()), [self.service])
         self.assertEqual(self.ticket.status, QueueTicket.Status.WAITING)
         self.assertTrue(self.ticket.is_priority)
         self.assertEqual(history.actor, self.super_admin)

@@ -27,7 +27,7 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Assigned Service</th>
+                            <th>Assigned Services</th>
                             <th>Status</th>
                             <th>Company</th>
                             <th>Actions</th>
@@ -37,7 +37,7 @@
                         {% for counter in counters %}
                         <tr>
                             <td>{{ counter.name }}</td>
-                            <td>{% if counter.assigned_service %}{{ counter.assigned_service.name }}{% else %}-{% endif %}</td>
+                            <td>{{ counter.assigned_services_label }}</td>
                             <td>{% if counter.is_active %}Active{% else %}Inactive{% endif %}</td>
                             <td>{{ counter.company.name }}</td>
                             <td><a href="{% url 'queueing:counter-update' counter.pk %}" class="button ghost">Edit</a></td>

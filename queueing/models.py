@@ -40,10 +40,8 @@ class QueueCounter(models.Model):
         related_name="queue_counters",
     )
     name = models.CharField(max_length=100)
-    assigned_service = models.ForeignKey(
+    assigned_services = models.ManyToManyField(
         QueueService,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
         related_name="counters",
     )
@@ -60,6 +58,15 @@ class QueueCounter(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def primary_assigned_service(self):
+        return self.assigned_services.order_by("name", "code").first()
+
+    @property
+    def assigned_services_label(self):
+        services = self.assigned_services.order_by("name", "code").values_list("name", flat=True)
+        return ", ".join(services) if services else "Unassigned"
 
 
 class QueueTicket(models.Model):

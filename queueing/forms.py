@@ -77,7 +77,7 @@ class QueueCounterForm(QueueCompanyAwareFormMixin, forms.ModelForm):
         fields = [
             "company",
             "name",
-            "assigned_service",
+            "assigned_services",
             "is_active",
         ]
 
@@ -92,7 +92,7 @@ class QueueCounterForm(QueueCompanyAwareFormMixin, forms.ModelForm):
             service_queryset = service_queryset.filter(company=self.current_company)
         else:
             service_queryset = QueueService.objects.none()
-        self.fields["assigned_service"].queryset = service_queryset
+        self.fields["assigned_services"].queryset = service_queryset
 
 
 class QueueDisplayScreenForm(QueueCompanyAwareFormMixin, forms.ModelForm):

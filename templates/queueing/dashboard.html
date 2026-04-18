@@ -206,7 +206,7 @@
                         <div class="list-item">
                             <div>
                                 <strong>{{ counter.name }}</strong>
-                                <p>{% if counter.assigned_service %}{{ counter.assigned_service.name }}{% else %}Unassigned{% endif %}</p>
+                                <p>{{ counter.assigned_services_label }}</p>
                             </div>
                             {% if can_manage_queue_setup %}
                             <a href="{% url 'queueing:counter-update' counter.pk %}" class="button ghost">Edit Counter</a>
