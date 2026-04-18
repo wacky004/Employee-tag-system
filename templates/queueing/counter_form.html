@@ -20,7 +20,27 @@
         <div class="card">
             <form method="post">
                 {% csrf_token %}
-                {{ form.as_p }}
+                {% for field in form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% if field.name == "assigned_services" %}
+                    <div class="checkbox-group">
+                        {{ field }}
+                    </div>
+                    {% else %}
+                    {{ field }}
+                    {% endif %}
+                    {% if field.help_text %}
+                    <p class="muted">{{ field.help_text }}</p>
+                    {% endif %}
+                    {% for error in field.errors %}
+                    <p class="muted" style="color: #b42318;">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                <p class="muted" style="color: #b42318;">{{ error }}</p>
+                {% endfor %}
                 <div class="actions">
                     <button type="submit" class="button">{% if object %}Update Counter{% else %}Create Counter{% endif %}</button>
                 </div>

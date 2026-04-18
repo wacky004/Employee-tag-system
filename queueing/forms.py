@@ -72,6 +72,13 @@ class QueueServiceForm(QueueCompanyAwareFormMixin, forms.ModelForm):
 
 
 class QueueCounterForm(QueueCompanyAwareFormMixin, forms.ModelForm):
+    assigned_services = forms.ModelMultipleChoiceField(
+        queryset=QueueService.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select one or more services that this counter can handle.",
+    )
+
     class Meta:
         model = QueueCounter
         fields = [
