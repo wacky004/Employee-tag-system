@@ -7,12 +7,17 @@
     <title>{{ screen.name }} | Queue Monitor</title>
     <style>
         :root {
-            --bg: #091220;
-            --surface: #11213a;
-            --text: #f8fbff;
-            --muted: #b7c6d8;
-            --accent: #63b3ed;
-            --border: rgba(255, 255, 255, 0.12);
+            --bg: #07111f;
+            --surface: #ffffff;
+            --surface-alt: #eef4fb;
+            --panel: #0d4d90;
+            --panel-alt: #083561;
+            --text: #16324f;
+            --muted: #617896;
+            --accent: #f28c18;
+            --accent-soft: rgba(242, 140, 24, 0.12);
+            --border: #d4dfec;
+            --good: #1f9d55;
         }
 
         * { box-sizing: border-box; }
@@ -21,143 +26,394 @@
             margin: 0;
             min-height: 100vh;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            color: var(--text);
             background:
                 radial-gradient(circle at top left, rgba(99, 179, 237, 0.18), transparent 28%),
                 linear-gradient(180deg, #08111f 0%, var(--bg) 100%);
-            display: grid;
-            place-items: center;
-            padding: 28px;
+            color: var(--text);
+            padding: 22px;
         }
 
-        .monitor-card {
-            width: min(980px, 100%);
-            padding: 32px;
+        .monitor-shell {
+            max-width: 1440px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(212, 223, 236, 0.9);
             border-radius: 28px;
-            background: rgba(17, 33, 58, 0.96);
-            border: 1px solid var(--border);
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
+            overflow: hidden;
         }
 
-        .monitor-head {
+        .monitor-topbar {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 18px;
-            margin-bottom: 28px;
+            padding: 18px 26px;
+            background: linear-gradient(90deg, var(--panel-alt), var(--panel));
+            color: #fff;
         }
 
-        .monitor-head h1 {
+        .monitor-brand h1 {
             margin: 0;
-            font-size: clamp(2rem, 4vw, 3rem);
+            font-size: clamp(1.8rem, 3vw, 2.8rem);
         }
 
-        .monitor-head p,
-        .monitor-chip,
+        .monitor-brand p,
         .monitor-meta {
+            margin: 6px 0 0;
+            color: rgba(255, 255, 255, 0.84);
+        }
+
+        .monitor-layout {
+            display: grid;
+            grid-template-columns: 1.3fr 0.85fr;
+            gap: 0;
+            min-height: calc(100vh - 140px);
+        }
+
+        .monitor-primary {
+            padding: 28px;
+            border-right: 1px solid var(--border);
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        }
+
+        .monitor-side {
+            display: grid;
+            grid-template-rows: auto auto 1fr;
+            gap: 0;
+            background: #f8fbff;
+        }
+
+        .hero-panel {
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 30px;
+            background: #fff;
+            box-shadow: 0 16px 36px rgba(10, 30, 60, 0.06);
+        }
+
+        .hero-label {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            text-align: center;
+        }
+
+        .hero-title {
+            margin-top: 10px;
+            text-align: center;
+            font-size: clamp(1.8rem, 3vw, 2.8rem);
+            font-weight: 800;
+            color: var(--panel);
+        }
+
+        .ticket-frame {
+            width: min(520px, 100%);
+            margin: 24px auto 18px;
+            padding: 24px;
+            border: 4px solid var(--accent);
+            border-radius: 28px;
+            background: linear-gradient(180deg, #fffaf3 0%, #ffffff 100%);
+            text-align: center;
+        }
+
+        .ticket-number {
+            font-size: clamp(6rem, 15vw, 10rem);
+            line-height: 1;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: 0.04em;
+        }
+
+        .ticket-empty {
+            padding: 52px 18px;
+            text-align: center;
+            border: 2px dashed var(--border);
+            border-radius: 24px;
+            color: var(--muted);
+            font-size: 1.2rem;
+        }
+
+        .service-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 22px;
+        }
+
+        .service-card {
+            padding: 18px;
+            border-radius: 18px;
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .service-card .label {
+            font-size: 0.92rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .service-card .value {
+            margin-top: 10px;
+            font-size: clamp(1.2rem, 2vw, 1.8rem);
+            font-weight: 800;
+            color: var(--panel);
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .stat-box {
+            padding: 18px;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 22px rgba(10, 30, 60, 0.05);
+        }
+
+        .stat-box .label {
+            font-size: 0.92rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .stat-box .value {
+            margin-top: 10px;
+            font-size: clamp(1.8rem, 3vw, 2.6rem);
+            font-weight: 800;
+            color: var(--panel);
+        }
+
+        .stat-box .subvalue {
+            margin-top: 8px;
+            font-size: 1rem;
             color: var(--muted);
         }
 
-        .monitor-chip {
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: rgba(99, 179, 237, 0.12);
-            border: 1px solid rgba(99, 179, 237, 0.2);
-            font-weight: 600;
-            white-space: nowrap;
+        .side-panel {
+            padding: 22px 24px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .monitor-center {
-            text-align: center;
-            padding: 34px 20px;
-            border-radius: 24px;
-            background: rgba(255, 255, 255, 0.04);
+        .side-panel:last-child {
+            border-bottom: 0;
+        }
+
+        .side-panel h2,
+        .side-panel h3 {
+            margin: 0 0 14px;
+            color: var(--panel);
+        }
+
+        .side-box {
+            padding: 18px;
+            border-radius: 18px;
+            background: #fff;
             border: 1px solid var(--border);
         }
 
-        .monitor-label {
-            font-size: 1.1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
+        .side-big {
+            font-size: clamp(2rem, 5vw, 3.8rem);
+            font-weight: 900;
+            color: var(--panel);
+            text-align: center;
+        }
+
+        .side-note {
+            margin-top: 8px;
+            text-align: center;
             color: var(--muted);
         }
 
-        .monitor-number {
-            margin: 16px 0;
-            font-size: clamp(4.8rem, 12vw, 8rem);
-            line-height: 1;
-            font-weight: 800;
-            color: var(--accent);
-        }
-
-        .monitor-meta {
-            display: grid;
-            gap: 10px;
-            font-size: 1.3rem;
-        }
-
-        .monitor-services {
-            margin-top: 24px;
+        .service-tags {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
+            gap: 10px;
         }
 
-        .monitor-service {
+        .service-tag {
             padding: 10px 14px;
             border-radius: 999px;
-            background: rgba(99, 179, 237, 0.12);
-            border: 1px solid rgba(99, 179, 237, 0.2);
+            background: var(--accent-soft);
+            border: 1px solid rgba(242, 140, 24, 0.18);
+            color: #8b4a00;
+            font-weight: 700;
         }
 
-        .empty-state {
-            padding: 28px;
-            border-radius: 24px;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px dashed var(--border);
+        .clock-box {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .clock-box .time {
+            font-size: clamp(2rem, 4vw, 3.4rem);
+            font-weight: 900;
+            color: var(--good);
+        }
+
+        .clock-box .muted {
             color: var(--muted);
-            font-size: 1.1rem;
         }
 
-        @media (max-width: 720px) {
-            .monitor-head {
+        .footer-band {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px 26px;
+            background: #f2f7fc;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-pill {
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        @media (max-width: 980px) {
+            .monitor-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .monitor-primary {
+                border-right: 0;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .service-strip,
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-band,
+            .monitor-topbar {
                 flex-direction: column;
+                align-items: flex-start;
             }
         }
     </style>
 </head>
 <body>
-    <section class="monitor-card">
-        <header class="monitor-head">
-            <div>
+    <section class="monitor-shell">
+        <header class="monitor-topbar">
+            <div class="monitor-brand">
                 <h1>{{ screen.name }}</h1>
-                <p>Live queue monitor for {{ screen.company.name }}</p>
+                <p>{{ screen.company.name }} queue monitor</p>
             </div>
-            <div class="monitor-chip">Auto refresh: {{ screen.refresh_interval_seconds }}s</div>
+            <div class="monitor-meta">Refresh every {{ screen.refresh_interval_seconds }} seconds</div>
         </header>
 
-        {% if current_ticket %}
-        <div class="monitor-center">
-            <div class="monitor-label">Current Number</div>
-            <div class="monitor-number">{{ current_ticket.queue_number }}</div>
-            <div class="monitor-meta">
-                <div><strong>Service:</strong> {{ current_ticket.service.name }}</div>
-                <div><strong>Counter:</strong> {% if current_ticket.assigned_counter %}{{ current_ticket.assigned_counter.name }}{% else %}Waiting for counter assignment{% endif %}</div>
-            </div>
-        </div>
-        {% else %}
-        <div class="empty-state">No active queue is currently being called for this screen.</div>
-        {% endif %}
+        <div class="monitor-layout">
+            <section class="monitor-primary">
+                <div class="hero-panel">
+                    <div class="hero-label">Current Serving</div>
+                    <div class="hero-title">Token Number</div>
+                    <div class="hero-label" style="margin-top: 8px; font-size: 0.95rem; color: var(--muted);">Current Number</div>
 
-        <div class="monitor-services">
-            {% for service in screen_services %}
-            <span class="monitor-service">{{ service.name }}</span>
-            {% empty %}
-            <span class="monitor-service">No linked services</span>
-            {% endfor %}
+                    {% if current_ticket %}
+                    <div class="ticket-frame">
+                        <div class="ticket-number">{{ current_ticket.queue_number }}</div>
+                    </div>
+
+                    <div class="service-strip">
+                        <div class="service-card">
+                            <div class="label">Service</div>
+                            <div class="value">{{ current_ticket.service.name }}</div>
+                        </div>
+                        <div class="service-card">
+                            <div class="label">Counter</div>
+                            <div class="value">{% if current_ticket.assigned_counter %}{{ current_ticket.assigned_counter.name }}{% else %}Pending{% endif %}</div>
+                        </div>
+                        <div class="service-card">
+                            <div class="label">Status</div>
+                            <div class="value">{{ current_ticket.get_status_display }}</div>
+                        </div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <div class="label">Serving Time</div>
+                            <div class="value">
+                                {% if current_started_at %}{{ current_started_at|timesince }}{% else %}-{% endif %}
+                            </div>
+                            <div class="subvalue">Since the current ticket was called</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">Next Queue</div>
+                            <div class="value">{% if next_ticket %}{{ next_ticket.queue_number }}{% else %}-{% endif %}</div>
+                            <div class="subvalue">Automatically updated from waiting tickets</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="ticket-empty">No active queue is currently being called for this monitor.</div>
+
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <div class="label">Waiting Count</div>
+                            <div class="value">{{ waiting_count }}</div>
+                            <div class="subvalue">Tickets waiting for this screen</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">Next Queue</div>
+                            <div class="value">{% if next_ticket %}{{ next_ticket.queue_number }}{% else %}-{% endif %}</div>
+                            <div class="subvalue">First waiting ticket in line</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <aside class="monitor-side">
+                <section class="side-panel">
+                    <h2>On Deck</h2>
+                    <div class="side-box">
+                        <div class="side-big">{% if next_ticket %}{{ next_ticket.queue_number }}{% else %}-{% endif %}</div>
+                        <div class="side-note">{% if next_ticket %}Next waiting ticket{% else %}No waiting queue yet{% endif %}</div>
+                    </div>
+                </section>
+
+                <section class="side-panel">
+                    <h3>Services On This Screen</h3>
+                    <div class="service-tags">
+                        {% for service in screen_services %}
+                        <span class="service-tag">{{ service.name }}</span>
+                        {% empty %}
+                        <span class="service-tag">No linked services</span>
+                        {% endfor %}
+                    </div>
+                </section>
+
+                <section class="side-panel">
+                    <h3>Queue Summary</h3>
+                    <div class="clock-box">
+                        <div><strong>Served Today:</strong> {{ total_served_today }}</div>
+                        <div><strong>Waiting:</strong> {{ waiting_count }}</div>
+                        <div class="time">{{ current_timestamp|date:"h:i A" }}</div>
+                        <div class="muted">{{ current_timestamp|date:"F j, Y" }}</div>
+                    </div>
+                </section>
+            </aside>
         </div>
+
+        <footer class="footer-band">
+            <div class="footer-pill">Live monitor for external screen display</div>
+            <div class="footer-pill">Updates when operator calls the next queue</div>
+        </footer>
     </section>
 </body>
 </html>

@@ -396,15 +396,31 @@ class QueueMonitorView(DetailView):
         context = super().get_context_data(**kwargs)
         screen = self.object
         services = screen.services.filter(is_active=True).order_by("name", "code")
-        current_ticket = QueueTicket.objects.select_related("service", "assigned_counter").filter(
+        tickets = QueueTicket.objects.select_related("service", "assigned_counter").filter(
             company=screen.company,
             service__in=services,
+        )
+        current_ticket = tickets.filter(
             status__in=[QueueTicket.Status.SERVING, QueueTicket.Status.CALLED],
         ).order_by("-called_at", "-created_at", "-id").first()
+        next_ticket = tickets.filter(
+            status=QueueTicket.Status.WAITING,
+        ).order_by("created_at", "id").first()
+        total_served_today = tickets.filter(
+            status=QueueTicket.Status.COMPLETED,
+            completed_at__date=timezone.localdate(),
+        ).count()
+        waiting_count = tickets.filter(status=QueueTicket.Status.WAITING).count()
+        current_started_at = current_ticket.called_at if current_ticket and current_ticket.called_at else None
         context.update(
             {
                 "screen_services": services,
                 "current_ticket": current_ticket,
+                "next_ticket": next_ticket,
+                "total_served_today": total_served_today,
+                "waiting_count": waiting_count,
+                "current_started_at": current_started_at,
+                "current_timestamp": timezone.localtime(),
             }
         )
         return context
