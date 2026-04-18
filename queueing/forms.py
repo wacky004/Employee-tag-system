@@ -132,26 +132,42 @@ class QueueDisplayScreenForm(QueueCompanyAwareFormMixin, forms.ModelForm):
 
 
 class QueueTicketGenerationForm(forms.ModelForm):
+    counter = forms.ModelChoiceField(queryset=QueueCounter.objects.none())
+
     class Meta:
         model = QueueTicket
-        fields = ["service", "is_priority"]
+        fields = ["counter", "service", "is_priority"]
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, selected_counter=None, **kwargs):
         self.current_company = company
+        self.selected_counter = selected_counter
         super().__init__(*args, **kwargs)
-        service_queryset = QueueService.objects.filter(
-            is_active=True,
-            show_in_ticket_generation=True,
-        ).order_by("name", "code")
+        counter_queryset = QueueCounter.objects.filter(is_active=True).order_by("name")
+        service_queryset = QueueService.objects.none()
         if self.current_company:
-            service_queryset = service_queryset.filter(company=self.current_company)
+            counter_queryset = counter_queryset.filter(company=self.current_company)
+        if self.selected_counter:
+            service_queryset = self.selected_counter.assigned_services.filter(
+                is_active=True,
+                show_in_ticket_generation=True,
+            ).order_by("name", "code")
+            self.fields["counter"].initial = self.selected_counter
+        self.fields["counter"].queryset = counter_queryset
         self.fields["service"].queryset = service_queryset
+        self.fields["service"].help_text = "Choose the service line available for the selected counter."
 
     def clean(self):
         cleaned_data = super().clean()
+        counter = cleaned_data.get("counter")
         service = cleaned_data.get("service")
+        if not counter:
+            raise forms.ValidationError("Please choose a counter first.")
         if not service:
             return cleaned_data
+        if not counter.is_active:
+            raise forms.ValidationError("This counter is inactive and cannot receive new tickets.")
+        if not counter.assigned_services.filter(pk=service.pk).exists():
+            raise forms.ValidationError("The selected counter cannot handle that service.")
         if not service.is_active or not service.show_in_ticket_generation:
             raise forms.ValidationError("This service is not available for ticket generation.")
         if service.current_queue_number >= service.max_queue_limit:

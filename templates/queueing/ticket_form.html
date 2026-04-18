@@ -21,10 +21,26 @@
         <div class="grid">
             <div class="card">
                 <h3>Ticket Input</h3>
-                <p>If a service already reached its configured limit, the system will block ticket creation and show a clear warning.</p>
+                <p>Choose a counter first, then pick the available service line for that counter. If a service already reached its configured limit, the system will block ticket creation and show a clear warning.</p>
                 <form method="post">
                     {% csrf_token %}
-                    {{ form.as_p }}
+                    <div class="field">
+                        <label for="{{ form.counter.id_for_label }}">Counter</label>
+                        {{ form.counter }}
+                        {% if form.counter.help_text %}<p class="muted">{{ form.counter.help_text }}</p>{% endif %}
+                        {% for error in form.counter.errors %}<p class="muted" style="color: #b42318;">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="field">
+                        <label for="{{ form.service.id_for_label }}">Service Line</label>
+                        {{ form.service }}
+                        {% if form.service.help_text %}<p class="muted">{{ form.service.help_text }}</p>{% endif %}
+                        {% for error in form.service.errors %}<p class="muted" style="color: #b42318;">{{ error }}</p>{% endfor %}
+                    </div>
+                    <div class="field checkbox-inline">
+                        {{ form.is_priority }}
+                        <label for="{{ form.is_priority.id_for_label }}">Priority Ticket</label>
+                    </div>
+                    {% for error in form.non_field_errors %}<p class="muted" style="color: #b42318;">{{ error }}</p>{% endfor %}
                     <div class="actions">
                         <button type="submit" class="button">Generate Ticket</button>
                     </div>
@@ -32,18 +48,61 @@
             </div>
 
             <div class="card">
-                <h3>Queue Rules</h3>
-                <div class="stat">Validation</div>
-                <p>Only services that are active and marked to appear in ticket generation are shown here.</p>
-            {% if selected_service and can_edit_selected_service %}
-            <div class="actions" style="margin-top: 16px;">
-                <a href="{% url 'queueing:service-update' selected_service.pk %}" class="button secondary">Edit Service Settings</a>
-            </div>
-            {% endif %}
+                <h3>{% if selected_counter %}Available Lines for {{ selected_counter.name }}{% else %}Queue Rules{% endif %}</h3>
+                <div class="stat">{% if selected_counter %}Counter Availability{% else %}Validation{% endif %}</div>
+                {% if selected_counter %}
+                <p>Only active ticket-generation services assigned to this counter are shown below.</p>
+                {% if available_service_rows %}
+                <div class="list" style="margin-top: 16px;">
+                    {% for row in available_service_rows %}
+                    <div class="list-item">
+                        <div>
+                            <strong>{{ row.service.name }}</strong>
+                            <p>Next line: {{ row.next_queue_number }}</p>
+                        </div>
+                        <div>
+                            {% if row.at_limit %}
+                            <span class="badge warn">Full</span>
+                            {% else %}
+                            <span class="badge">{{ row.remaining_slots }} slot{{ row.remaining_slots|pluralize }} left</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">This counter has no active service lines available for ticket generation yet.</div>
+                {% endif %}
+                {% else %}
+                <p>Select a counter to show the available service lines and the next queue number for each one.</p>
+                {% endif %}
+                {% if selected_service and can_edit_selected_service %}
+                <div class="actions" style="margin-top: 16px;">
+                    <a href="{% url 'queueing:service-update' selected_service.pk %}" class="button secondary">Edit Service Settings</a>
+                </div>
+                {% endif %}
                 <p>If the limit is reached, the message will be:</p>
                 <p><strong>Maximum queue limit reached for this service</strong></p>
             </div>
         </div>
     </div>
 </div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const counterSelect = document.getElementById("id_counter");
+    if (!counterSelect) {
+        return;
+    }
+    counterSelect.addEventListener("change", function () {
+        const url = new URL(window.location.href);
+        if (counterSelect.value) {
+            url.searchParams.set("counter", counterSelect.value);
+        } else {
+            url.searchParams.delete("counter");
+        }
+        url.searchParams.delete("service");
+        window.location.href = url.toString();
+    });
+});
+</script>
 {% endblock %}

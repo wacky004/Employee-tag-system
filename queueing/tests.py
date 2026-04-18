@@ -570,6 +570,7 @@ class QueueingSetupPageTests(TestCase):
         response = self.client.post(
             reverse("queueing:ticket-create"),
             {
+                "counter": self.counter.id,
                 "service": self.service.id,
                 "is_priority": "on",
             },
@@ -583,6 +584,7 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(response, "R001")
         self.assertEqual(self.service.current_queue_number, 1)
         self.assertTrue(ticket.is_priority)
+        self.assertEqual(ticket.assigned_counter, self.counter)
         self.assertTrue(
             QueueHistoryLog.objects.filter(
                 ticket=ticket,
@@ -598,6 +600,7 @@ class QueueingSetupPageTests(TestCase):
         response = self.client.post(
             reverse("queueing:ticket-create"),
             {
+                "counter": self.counter.id,
                 "service": self.service.id,
             },
             follow=True,
@@ -615,6 +618,7 @@ class QueueingSetupPageTests(TestCase):
         response = self.client.post(
             reverse("queueing:ticket-create"),
             {
+                "counter": self.counter.id,
                 "service": self.service.id,
             },
             follow=True,
@@ -625,25 +629,49 @@ class QueueingSetupPageTests(TestCase):
         self.assertFalse(QueueTicket.objects.filter(service=self.service).exists())
 
     def test_ticket_generation_only_shows_enabled_services(self):
-        QueueService.objects.create(
+        hidden_service = QueueService.objects.create(
             company=self.company,
             name="Pharmacy",
             code="P",
             max_queue_limit=50,
             show_in_ticket_generation=False,
         )
+        self.counter.assigned_services.add(hidden_service)
 
         self.client.force_login(self.admin)
-        response = self.client.get(reverse("queueing:ticket-create"))
+        response = self.client.get(reverse("queueing:ticket-create"), {"counter": self.counter.id})
 
+        self.assertContains(response, self.counter.name)
         self.assertContains(response, "Registrar")
         self.assertNotContains(response, "Pharmacy")
+        self.assertContains(response, "R001")
+
+    def test_ticket_generation_shows_available_lines_for_selected_counter(self):
+        other_service = QueueService.objects.create(
+            company=self.company,
+            name="Cashier",
+            code="C",
+            max_queue_limit=5,
+            current_queue_number=2,
+        )
+        self.counter.assigned_services.add(other_service)
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("queueing:ticket-create"), {"counter": self.counter.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f"Available Lines for {self.counter.name}")
+        self.assertContains(response, "Registrar")
+        self.assertContains(response, "R001")
+        self.assertContains(response, "Cashier")
+        self.assertContains(response, "C003")
 
     def test_success_page_shows_service_edit_button_for_full_super_admin(self):
         ticket = QueueTicket.objects.create(
             company=self.company,
             queue_number="R001",
             service=self.service,
+            assigned_counter=self.counter,
         )
 
         self.client.force_login(self.super_admin)
@@ -657,6 +685,7 @@ class QueueingSetupPageTests(TestCase):
             company=self.company,
             queue_number="R001",
             service=self.service,
+            assigned_counter=self.counter,
         )
 
         self.client.force_login(self.admin)
@@ -667,9 +696,10 @@ class QueueingSetupPageTests(TestCase):
 
     def test_full_super_admin_can_open_ticket_generation_page(self):
         self.client.force_login(self.super_admin)
-        response = self.client.get(reverse("queueing:ticket-create"))
+        response = self.client.get(reverse("queueing:ticket-create"), {"counter": self.counter.id})
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.counter.name)
         self.assertContains(response, "Registrar")
 
     def test_operator_panel_can_call_next_mark_serving_mark_done_skip_and_recall(self):

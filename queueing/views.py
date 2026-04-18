@@ -248,27 +248,56 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
     form_class = QueueTicketGenerationForm
     template_name = "queueing/ticket_form.html"
 
+    def _selected_counter(self):
+        counter_id = self.request.POST.get("counter") or self.request.GET.get("counter")
+        if not counter_id:
+            return None
+        return self._company_queryset(
+            QueueCounter.objects.prefetch_related("assigned_services").filter(is_active=True)
+        ).filter(pk=counter_id).first()
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["company"] = self.request.user.company
+        kwargs["selected_counter"] = self._selected_counter()
         return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        service_id = self.request.GET.get("service")
+        selected_counter = self._selected_counter()
+        service_id = self.request.GET.get("service") or self.request.POST.get("service")
         selected_service = None
         if service_id:
             queryset = self._company_queryset(QueueService.objects.all())
             selected_service = queryset.filter(pk=service_id).first()
+        available_service_rows = []
+        if selected_counter:
+            services = selected_counter.assigned_services.filter(
+                is_active=True,
+                show_in_ticket_generation=True,
+            ).order_by("name", "code")
+            for service in services:
+                remaining_slots = max(service.max_queue_limit - service.current_queue_number, 0)
+                available_service_rows.append(
+                    {
+                        "service": service,
+                        "next_queue_number": f"{service.code}{service.current_queue_number + 1:03d}",
+                        "remaining_slots": remaining_slots,
+                        "at_limit": remaining_slots == 0,
+                    }
+                )
         context.update(
             {
+                "selected_counter": selected_counter,
                 "selected_service": selected_service,
+                "available_service_rows": available_service_rows,
                 "can_edit_selected_service": bool(selected_service and self.request.user.role == User.Role.SUPER_ADMIN),
             }
         )
         return context
 
     def form_valid(self, form):
+        counter = form.cleaned_data["counter"]
         service = form.cleaned_data["service"]
         is_priority = form.cleaned_data["is_priority"]
 
@@ -295,13 +324,15 @@ class QueueTicketCreateView(QueueingSetupMixin, FormView):
                 company=locked_service.company,
                 queue_number=queue_number,
                 service=locked_service,
+                assigned_counter=counter,
                 is_priority=is_priority,
             )
             _log_queue_action(
                 ticket=ticket,
                 actor=self.request.user,
                 action=QueueHistoryLog.Action.CREATED,
-                notes="Queue ticket generated from the setup page.",
+                notes=f"Queue ticket generated for {counter.name}.",
+                counter=counter,
             )
 
         messages.success(self.request, f"Queue ticket {queue_number} created successfully.")

@@ -11,7 +11,7 @@
                 <p>{{ ticket.company.name }}. The queue ticket was created successfully and is ready to share or print.</p>
             </div>
             <div class="actions">
-                <a href="{% url 'queueing:ticket-create' %}?service={{ ticket.service_id }}" class="button secondary">Generate Another</a>
+                <a href="{% url 'queueing:ticket-create' %}?counter={{ ticket.assigned_counter_id }}&service={{ ticket.service_id }}" class="button secondary">Generate Another</a>
                 <a href="{% url 'queueing:dashboard' %}" class="button secondary">Queueing Home</a>
                 <button type="button" class="button" onclick="window.print()">Print Ticket</button>
             </div>
@@ -34,6 +34,10 @@
                     <div class="value">{{ ticket.service.name }}</div>
                 </div>
                 <div class="mini-card">
+                    <h4>Counter</h4>
+                    <div class="value">{% if ticket.assigned_counter %}{{ ticket.assigned_counter.name }}{% else %}-{% endif %}</div>
+                </div>
+                <div class="mini-card">
                     <h4>Status</h4>
                     <div class="value">{{ ticket.get_status_display }}</div>
                 </div>
@@ -46,6 +50,9 @@
             <div class="card" style="margin-top: 20px;">
                 <h3>Print-Friendly Copy</h3>
                 <p><strong>{{ ticket.company.name }}</strong></p>
+                {% if ticket.assigned_counter %}
+                <p>Counter: {{ ticket.assigned_counter.name }}</p>
+                {% endif %}
                 <p>Service: {{ ticket.service.name }}</p>
                 <p>Queue Number: <strong>{{ ticket.queue_number }}</strong></p>
                 {% if ticket.is_priority %}
