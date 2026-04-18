@@ -17,7 +17,5 @@
 
     {% if active_module == "queueing" and request.user.role == "SUPER_ADMIN" %}
     <a href="{% url 'queueing:setting-list' %}" class="tab-link">Queue Settings</a>
-    {% elif request.user.role == "SUPER_ADMIN" %}
-    <a href="{% url 'core:settings' %}" class="tab-link{% if active_module == 'settings' %} active{% endif %}">Settings</a>
     {% endif %}
 </nav>
