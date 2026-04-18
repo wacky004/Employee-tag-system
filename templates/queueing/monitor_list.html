@@ -51,6 +51,9 @@
                                 <div class="actions" style="margin-top: 0;">
                                     <a href="{% url 'queueing:monitor-view' row.screen.slug %}" class="button" target="_blank" rel="noopener">Open Monitor</a>
                                     <a href="{% url 'queueing:display-screen-view' row.screen.slug %}" class="button ghost" target="_blank" rel="noopener">Full Display</a>
+                                    {% if request.user.role == "SUPER_ADMIN" %}
+                                    <a href="{% url 'queueing:display-screen-update' row.screen.pk %}" class="button ghost">Edit Monitor</a>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

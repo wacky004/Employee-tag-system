@@ -528,6 +528,14 @@ class QueueingSetupPageTests(TestCase):
         self.assertContains(response, current_ticket.queue_number)
         self.assertContains(response, reverse("queueing:monitor-view", kwargs={"slug": self.screen.slug}))
 
+    def test_superadmin_monitor_list_shows_edit_monitor_button(self):
+        self.client.force_login(self.super_admin)
+        response = self.client.get(reverse("queueing:monitor-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("queueing:display-screen-update", kwargs={"pk": self.screen.pk}))
+        self.assertContains(response, "Edit Monitor")
+
     def test_monitor_view_shows_only_current_ticket_information(self):
         current_ticket = QueueTicket.objects.create(
             company=self.company,
