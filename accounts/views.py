@@ -246,6 +246,8 @@ class ManagerDashboardView(RoleRequiredMixin, TemplateView):
 
         context.update(
             {
+                "can_view_tagging_module": self.request.user.has_tagging_module_access(),
+                "can_view_inventory_module": self.request.user.has_inventory_module_access(),
                 "can_view_queueing_module": self.request.user.has_queueing_module_access(),
                 "selected_date": selected_date,
                 "selected_team": selected_team,

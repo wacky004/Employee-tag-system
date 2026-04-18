@@ -15,6 +15,9 @@ class ReportCenterView(RoleRequiredMixin, TemplateView):
     template_name = "reports/report_center.html"
     allowed_roles = (User.Role.ADMIN, User.Role.SUPER_ADMIN)
 
+    def test_func(self):
+        return super().test_func() and self.request.user.has_tagging_module_access()
+
     def get(self, request, *args, **kwargs):
         filters = normalize_filters(request.GET)
         company = request.user.company if request.user.company_id else None

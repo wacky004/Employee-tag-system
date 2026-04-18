@@ -12,12 +12,14 @@
                 <p>Daily, weekly, monthly, exception, and HR-style attendance reporting.</p>
             </div>
             <div class="actions">
-                <a href="{% url 'accounts:manager-dashboard' %}" class="button secondary">Back to Dashboard</a>
+                <a href="{% url 'tagging:dashboard' %}" class="button secondary">Back to Tagging</a>
                 <a href="?{% for key, value in request.GET.items %}{% if key != 'export' and key != 'print' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}print=1" class="button ghost" target="_blank">Printable View</a>
                 <a href="?{% for key, value in request.GET.items %}{% if key != 'export' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}export=csv" class="button ghost">Export CSV</a>
                 <a href="?{% for key, value in request.GET.items %}{% if key != 'export' %}{{ key }}={{ value|urlencode }}&{% endif %}{% endfor %}export=xlsx" class="button">Export Excel</a>
             </div>
         </div>
+
+        {% include "partials/module_menu.html" with active_module="tagging" %}
 
         <section class="hero">
             <h2>{{ dataset.title }}</h2>

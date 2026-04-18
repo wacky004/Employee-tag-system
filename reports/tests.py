@@ -3,6 +3,7 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from accounts.models import Company
 from attendance.models import AttendanceSession, OverbreakRecord
 from employees.models import Department, EmployeeProfile, Team
 from tagging.models import TagType
@@ -12,11 +13,18 @@ User = get_user_model()
 
 class ReportCenterTests(TestCase):
     def setUp(self):
+        self.company = Company.objects.create(
+            name="Reports Tenant",
+            code="REPORTS",
+            can_use_tagging=True,
+        )
         self.manager = User.objects.create_user(
             username="manager-report",
             password="password123",
             email="manager-report@example.com",
             role=User.Role.ADMIN,
+            company=self.company,
+            can_access_tagging=True,
         )
         self.department = Department.objects.create(name="Operations", code="OPS")
         self.team = Team.objects.create(name="Support", code="SUP", department=self.department, lead=self.manager)
@@ -27,6 +35,7 @@ class ReportCenterTests(TestCase):
             role=User.Role.EMPLOYEE,
             first_name="Jamie",
             last_name="Rivera",
+            company=self.company,
         )
         EmployeeProfile.objects.create(
             user=self.employee,
@@ -80,3 +89,12 @@ class ReportCenterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv")
         self.assertIn("attachment; filename=\"overbreak-report.csv\"", response["Content-Disposition"])
+
+    def test_report_center_requires_tagging_module_access(self):
+        self.manager.can_access_tagging = False
+        self.manager.save(update_fields=["can_access_tagging"])
+
+        self.client.login(username="manager-report", password="password123")
+        response = self.client.get("/reports/?report=daily&date=2026-04-11")
+
+        self.assertRedirects(response, "/dashboard/manager/")
