@@ -111,8 +111,8 @@ class QueueingDashboardTests(TestCase):
         self.assertContains(response, "Employee Tagging")
         self.assertContains(response, "Inventory")
         self.assertContains(response, "Queueing")
-        self.assertContains(response, "Reports")
-        self.assertContains(response, "Settings")
+        self.assertNotContains(response, "Reports")
+        self.assertContains(response, "Queue Settings")
 
     def test_admin_with_queueing_access_can_open_dashboard(self):
         self.client.force_login(self.admin)

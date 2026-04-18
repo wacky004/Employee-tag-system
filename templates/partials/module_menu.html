@@ -15,11 +15,15 @@
     <a href="{% url 'queueing:dashboard' %}" class="tab-link{% if active_module == 'queueing' %} active{% endif %}">Queueing</a>
     {% endif %}
 
-    {% if request.user.role == "SUPER_ADMIN" or request.user.role == "ADMIN" %}
+    {% if active_module != "queueing" %}
+        {% if request.user.role == "SUPER_ADMIN" or request.user.role == "ADMIN" %}
     <a href="{% url 'reports:center' %}" class="tab-link{% if active_module == 'reports' %} active{% endif %}">Reports</a>
+        {% endif %}
     {% endif %}
 
-    {% if request.user.role == "SUPER_ADMIN" %}
+    {% if active_module == "queueing" and request.user.role == "SUPER_ADMIN" %}
+    <a href="{% url 'queueing:setting-list' %}" class="tab-link">Queue Settings</a>
+    {% elif request.user.role == "SUPER_ADMIN" %}
     <a href="{% url 'core:settings' %}" class="tab-link{% if active_module == 'settings' %} active{% endif %}">Settings</a>
     {% endif %}
 </nav>
