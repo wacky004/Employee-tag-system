@@ -1,0 +1,27 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{{ index_url }}">Home</a>
+    &rsaquo; <a href="{{ app_list_url }}">{{ opts.app_config.verbose_name }}</a>
+    &rsaquo; <a href="{{ changelist_url }}">{{ opts.verbose_name_plural|capfirst }}</a>
+    &rsaquo; <a href="{{ change_url }}">{{ original }}</a>
+    &rsaquo; Disable all modules
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Disable all modules for {{ original.name }}</h1>
+    <p>This will immediately switch off Tagging, Inventory, and Queueing for this tenant.</p>
+    <p>Users in this tenant will lose access until the modules are enabled again individually.</p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="yes">
+        <div class="submit-row">
+            <input type="submit" value="Confirm Disable All" class="default">
+            <a href="{{ change_url }}" class="button cancel-link">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

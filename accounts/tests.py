@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from .models import Company
 from attendance.models import AttendanceSession
+from auditlogs.models import AuditLog
 from attendance.services import get_employee_tagging_state
 from employees.models import Department, EmployeeProfile, Team
 from tagging.models import TagLog, TagType
@@ -601,6 +602,50 @@ class CompanyManagementTests(TestCase):
         self.assertFalse(tenant_user.can_access_tagging)
         self.assertFalse(tenant_user.can_access_inventory)
 
+    def test_platform_admin_change_page_shows_disable_all_modules_button(self):
+        company = Company.objects.create(
+            name="Orbit Labs",
+            code="ORBIT",
+            can_use_tagging=True,
+            can_use_inventory=True,
+            can_use_queueing=True,
+        )
+
+        self.client.force_login(self.platform_super_admin)
+        response = self.client.get(reverse("admin:accounts_company_change", args=[company.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("admin:accounts_company_disable_all_modules", args=[company.pk]))
+
+    def test_platform_admin_can_disable_all_modules_for_company(self):
+        company = Company.objects.create(
+            name="Vertex Ops",
+            code="VERTEX",
+            can_use_tagging=True,
+            can_use_inventory=True,
+            can_use_queueing=True,
+        )
+
+        self.client.force_login(self.platform_super_admin)
+        response = self.client.post(
+            reverse("admin:accounts_company_disable_all_modules", args=[company.pk]),
+            {"confirm": "yes"},
+            follow=True,
+        )
+        company.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(company.can_use_tagging)
+        self.assertFalse(company.can_use_inventory)
+        self.assertFalse(company.can_use_queueing)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="TENANT_MODULES_DISABLED",
+                target_model="accounts.Company",
+                target_id=str(company.pk),
+            ).exists()
+        )
+
 
 class TenantAdminTests(TestCase):
     def setUp(self):
@@ -714,3 +759,31 @@ class TenantAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "harbor-user")
         self.assertNotContains(response, "peak-user")
+
+    def test_tenant_admin_company_change_page_hides_disable_all_button_for_tenant_super_admin(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.get(reverse("tenant_admin:accounts_company_change", args=[self.company.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Disable All Modules")
+
+    def test_platform_super_admin_can_use_disable_all_modules_from_tenant_admin(self):
+        platform_super_admin = User.objects.create_user(
+            username="tenant-platform-root",
+            password="password123",
+            email="tenant-platform-root@example.com",
+            role=User.Role.SUPER_ADMIN,
+        )
+
+        self.client.force_login(platform_super_admin)
+        response = self.client.post(
+            reverse("tenant_admin:accounts_company_disable_all_modules", args=[self.company.pk]),
+            {"confirm": "yes"},
+            follow=True,
+        )
+        self.company.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.company.can_use_tagging)
+        self.assertFalse(self.company.can_use_inventory)
+        self.assertFalse(self.company.can_use_queueing)

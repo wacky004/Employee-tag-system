@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+{{ block.super }}
+{% if change and not is_popup and disable_all_modules_url %}
+<li>
+    <a href="{{ disable_all_modules_url }}" class="deletelink">Disable All Modules</a>
+</li>
+{% endif %}
+{% endblock %}
