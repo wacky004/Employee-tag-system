@@ -13,6 +13,7 @@
             <div class="actions">
                 <a href="{% url 'inventory:employee-detail' employee.pk %}" class="button secondary">Back to Employee Detail</a>
                 <a href="{% url 'inventory:employee-list' %}" class="button secondary">Employee List</a>
+                <a href="{% url 'inventory:dashboard' %}" class="button secondary">Inventory Home</a>
             </div>
         </div>
 
@@ -23,6 +24,7 @@
                 <div class="field">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
+                    {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
                     {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
                 </div>
                 {% endfor %}

@@ -247,6 +247,12 @@ def get_employee_tagging_state(employee, work_date):
             elif log.tag_type.code == end_code:
                 open_states[key] = None
 
+    active_entries = [(key, log) for key, log in open_states.items() if log is not None]
+    active_key = None
+    active_log = None
+    if active_entries:
+        active_key, active_log = max(active_entries, key=lambda item: item[1].timestamp)
+
     has_time_in = bool(session and session.first_time_in and not session.last_time_out)
     has_time_out = bool(session and session.last_time_out)
     cooldown_active = False
@@ -265,25 +271,30 @@ def get_employee_tagging_state(employee, work_date):
     elif has_time_out and not cooldown_active:
         valid_codes.append("TIME_IN")
     if has_time_in:
-        valid_codes.append("TIME_OUT")
-        for key, (_, start_code, end_code) in CATEGORY_CODE_MAP.items():
-            valid_codes.append(end_code if open_states[key] else start_code)
+        if active_key:
+            valid_codes.append(CATEGORY_CODE_MAP[active_key][2])
+        else:
+            valid_codes.append("TIME_OUT")
+            for key, (_, start_code, _end_code) in CATEGORY_CODE_MAP.items():
+                valid_codes.append(start_code)
 
     controls = {}
     now = timezone.now()
     for key, (category, start_code, end_code) in CATEGORY_CODE_MAP.items():
         allowed_minutes = _allowed_minutes_for_category(category, settings)
         consumed_minutes = _get_consumed_minutes(session, category)
-        active_log = open_states[key]
-        active_elapsed = _duration_minutes(active_log.timestamp, now) if active_log else 0
+        control_log = active_log if key == active_key else None
+        active_elapsed = _duration_minutes(control_log.timestamp, now) if control_log else 0
+        control_code = end_code if control_log else start_code
         remaining_minutes = max(0, allowed_minutes - consumed_minutes - active_elapsed)
         controls[key] = {
             "key": key,
             "label": key.title(),
-            "code": end_code if active_log else start_code,
-            "button_label": f"{key.title()} End" if active_log else f"{key.title()} Start",
-            "active": bool(active_log),
-            "started_at": active_log.timestamp if active_log else None,
+            "code": control_code,
+            "button_label": f"{key.title()} End" if control_log else f"{key.title()} Start",
+            "active": bool(control_log),
+            "enabled": control_code in valid_codes,
+            "started_at": control_log.timestamp if control_log else None,
             "allowed_minutes": allowed_minutes,
             "consumed_minutes": consumed_minutes,
             "active_elapsed_minutes": active_elapsed,

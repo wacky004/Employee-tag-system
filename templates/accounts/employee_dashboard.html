@@ -217,7 +217,7 @@
                         <button
                             type="submit"
                             class="button {% if control.active %}danger{% elif not has_timed_in or has_timed_out %}secondary{% endif %}"
-                            {% if not has_timed_in or has_timed_out %}disabled{% endif %}
+                            {% if not control.enabled %}disabled{% endif %}
                         >
                             {{ control.button_label }}
                         </button>
@@ -344,6 +344,16 @@
             node.setAttribute("data-remaining-seconds", String(initial));
             renderCountdown();
             window.setInterval(renderCountdown, 1000);
+        });
+
+        document.querySelectorAll('form.button-form input[name="tag_action"]').forEach(function (input) {
+            const form = input.form;
+            if (!form) return;
+            form.addEventListener("submit", function () {
+                document.querySelectorAll('form.button-form button[type="submit"]').forEach(function (button) {
+                    button.disabled = true;
+                });
+            });
         });
     }());
 </script>

@@ -28,6 +28,7 @@
                     <div class="field">
                         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
+                        {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
                         {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
                     </div>
                     {% endfor %}
