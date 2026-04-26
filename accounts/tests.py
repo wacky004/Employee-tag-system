@@ -486,11 +486,38 @@ class OrganizationLoginTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "organization does not match this account")
 
+    def test_company_user_must_enter_organization(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "organization": "",
+                "username": "acme-admin",
+                "password": "password123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please enter your organization name or code.")
+
     def test_platform_super_admin_can_log_in_with_aquiso_organization(self):
         response = self.client.post(
             reverse("accounts:login"),
             {
                 "organization": "AquiSo",
+                "username": "platform-root",
+                "password": "password123",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("accounts:super-admin-dashboard"))
+
+    def test_platform_super_admin_can_log_in_without_organization(self):
+        response = self.client.post(
+            reverse("accounts:login"),
+            {
+                "organization": "",
                 "username": "platform-root",
                 "password": "password123",
             },

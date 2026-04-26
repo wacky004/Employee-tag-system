@@ -10,9 +10,10 @@ User = get_user_model()
 class OrganizationLoginForm(AuthenticationForm):
     field_order = ["organization", "username", "password"]
     organization = forms.CharField(
-        label="Organization",
+        label="Organization (required for tenant users only)",
         max_length=150,
-        help_text="Enter your company code or company name. Platform admins can use AquiSo.",
+        required=False,
+        help_text="Enter your company code or company name if your account belongs to a tenant. Platform superadmins can leave this blank.",
     )
 
     def clean(self):
@@ -25,7 +26,18 @@ class OrganizationLoginForm(AuthenticationForm):
             if self.user_cache is None:
                 raise self.get_invalid_login_error()
             self.confirm_login_allowed(self.user_cache)
-            if not self.user_cache.matches_organization(organization):
+            if self.user_cache.company_id:
+                if not organization:
+                    raise forms.ValidationError(
+                        "Please enter your organization name or code.",
+                        code="organization_required",
+                    )
+                if not self.user_cache.matches_organization(organization):
+                    raise forms.ValidationError(
+                        "The organization does not match this account. Please check the company name or code.",
+                        code="invalid_organization",
+                    )
+            elif not self.user_cache.is_platform_super_admin() and organization and not self.user_cache.matches_organization(organization):
                 raise forms.ValidationError(
                     "The organization does not match this account. Please check the company name or code.",
                     code="invalid_organization",

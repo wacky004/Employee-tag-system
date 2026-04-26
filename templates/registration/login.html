@@ -7,7 +7,7 @@
     <div class="login-card">
         <div class="pill">Multi-vendor platform</div>
         <h1>AquiSo</h1>
-        <p class="hint">Sign in to continue to your company workspace. Each business only sees the modules that were activated for their account.</p>
+        <p class="hint">Sign in to continue to your company workspace. Tenant users should enter their organization name or code. Platform superadmins can sign in with username and password only.</p>
         <form method="post">
             {% csrf_token %}
             {{ form.as_p }}
