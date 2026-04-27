@@ -25,12 +25,25 @@
                 <form method="post">
                     {% csrf_token %}
                     {% for field in form %}
+                    {% if field.name == "equipment" %}
+                    <div class="field">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        <div class="actions" style="justify-content: flex-start;">
+                            <button type="button" class="button secondary" id="open-equipment-picker">Browse Equipment</button>
+                            <div class="muted" id="selected-equipment-label">No equipment selected yet.</div>
+                        </div>
+                        <div style="display: none;">{{ field }}</div>
+                        {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
+                        {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
+                    </div>
+                    {% else %}
                     <div class="field">
                         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                         {{ field }}
                         {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
                         {% if field.errors %}<div class="muted">{{ field.errors|join:", " }}</div>{% endif %}
                     </div>
+                    {% endif %}
                     {% endfor %}
                     {% if form.non_field_errors %}
                     <div class="muted">{{ form.non_field_errors|join:", " }}</div>
@@ -69,4 +82,109 @@
         </div>
     </div>
 </div>
+
+<div class="inventory-floating-modal" id="equipment-picker-modal" aria-hidden="true">
+    <div class="inventory-floating-modal__backdrop" data-close-equipment-picker></div>
+    <div class="inventory-floating-modal__panel" role="dialog" aria-modal="true" aria-labelledby="equipment-picker-title">
+        <div class="inventory-floating-modal__header">
+            <div>
+                <p class="inventory-header__eyebrow">Equipment Picker</p>
+                <h2 id="equipment-picker-title">Select Equipment</h2>
+                <p class="inventory-modal__summary">Choose from the inventory items available to this tenant.</p>
+            </div>
+            <div class="actions" style="margin-top: 0;">
+                <button type="button" class="button secondary" data-close-equipment-picker>Close</button>
+            </div>
+        </div>
+        <div class="inventory-floating-modal__body">
+            <div class="table-wrap inventory-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Asset Code</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th>Current Holder</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipment in assignable_equipment %}
+                        <tr>
+                            <td>{{ equipment.asset_code }}</td>
+                            <td>{{ equipment.name }}</td>
+                            <td>{% if equipment.category %}{{ equipment.category.name }}{% else %}-{% endif %}</td>
+                            <td>{{ equipment.get_status_display }}</td>
+                            <td>{% if equipment.current_employee %}{{ equipment.current_employee.full_name }}{% else %}Available{% endif %}</td>
+                            <td>
+                                <button
+                                    type="button"
+                                    class="button secondary equipment-picker-select"
+                                    data-equipment-id="{{ equipment.id }}"
+                                    data-equipment-label="{{ equipment.asset_code }} - {{ equipment.name }}"
+                                >
+                                    Select
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="muted">No equipment is available for this tenant yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const modal = document.getElementById("equipment-picker-modal");
+        const openButton = document.getElementById("open-equipment-picker");
+        const closeButtons = document.querySelectorAll("[data-close-equipment-picker]");
+        const equipmentField = document.getElementById("id_equipment");
+        const selectedLabel = document.getElementById("selected-equipment-label");
+        const selectButtons = document.querySelectorAll(".equipment-picker-select");
+
+        if (!modal || !openButton || !equipmentField || !selectedLabel) {
+            return;
+        }
+
+        function setModalState(isOpen) {
+            modal.classList.toggle("is-open", isOpen);
+            modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+            document.body.style.overflow = isOpen ? "hidden" : "";
+        }
+
+        function syncSelectedLabel() {
+            const selectedOption = equipmentField.options[equipmentField.selectedIndex];
+            selectedLabel.textContent = selectedOption && selectedOption.value
+                ? selectedOption.textContent
+                : "No equipment selected yet.";
+        }
+
+        openButton.addEventListener("click", function () {
+            setModalState(true);
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener("click", function () {
+                setModalState(false);
+            });
+        });
+
+        selectButtons.forEach((button) => {
+            button.addEventListener("click", function () {
+                equipmentField.value = button.getAttribute("data-equipment-id");
+                syncSelectedLabel();
+                setModalState(false);
+            });
+        });
+
+        syncSelectedLabel();
+    })();
+</script>
 {% endblock %}

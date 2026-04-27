@@ -7,6 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 
+from accounts.models import Company
+
 from .models import (
     Employee,
     Equipment,
@@ -18,6 +20,82 @@ from .models import (
 )
 
 User = get_user_model()
+
+
+class InventoryTenantIsolationTests(TestCase):
+    def setUp(self):
+        self.company_one = Company.objects.create(
+            name="Tenant One",
+            code="TENANT1",
+            can_use_inventory=True,
+        )
+        self.company_two = Company.objects.create(
+            name="Tenant Two",
+            code="TENANT2",
+            can_use_inventory=True,
+        )
+        self.tenant_super_admin = User.objects.create_user(
+            username="tenantinventory",
+            email="tenantinventory@example.com",
+            password="pass12345",
+            role=User.Role.SUPER_ADMIN,
+            company=self.company_one,
+            can_access_inventory=True,
+        )
+        self.category_one = EquipmentCategory.objects.create(
+            company=self.company_one,
+            name="Laptop Tenant One",
+            code="TENANT1-LAPTOP",
+        )
+        self.category_two = EquipmentCategory.objects.create(
+            company=self.company_two,
+            name="Laptop Tenant Two",
+            code="TENANT2-LAPTOP",
+        )
+        self.employee_one = Employee.objects.create(
+            company=self.company_one,
+            full_name="Employee One",
+            employee_code="TENANT1-EMP",
+        )
+        self.employee_two = Employee.objects.create(
+            company=self.company_two,
+            full_name="Employee Two",
+            employee_code="TENANT2-EMP",
+        )
+        self.equipment_one = Equipment.objects.create(
+            company=self.company_one,
+            asset_code="TENANT1-EQ",
+            name="Tenant One Laptop",
+            category=self.category_one,
+        )
+        self.equipment_two = Equipment.objects.create(
+            company=self.company_two,
+            asset_code="TENANT2-EQ",
+            name="Tenant Two Laptop",
+            category=self.category_two,
+        )
+
+    def test_tenant_inventory_dashboard_only_shows_same_company_records(self):
+        self.client.force_login(self.tenant_super_admin)
+
+        response = self.client.get(reverse("inventory:dashboard"))
+        report_response = self.client.get(reverse("inventory:equipment-report-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Total Equipment")
+        self.assertContains(response, ">1<", html=False)
+        self.assertContains(report_response, "TENANT1-EQ")
+        self.assertNotContains(report_response, "TENANT2-EQ")
+
+    def test_assignment_page_only_lists_same_company_equipment_and_picker_button(self):
+        self.client.force_login(self.tenant_super_admin)
+
+        response = self.client.get(reverse("inventory:equipment-assign"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Browse Equipment")
+        self.assertContains(response, "TENANT1-EQ")
+        self.assertNotContains(response, "TENANT2-EQ")
 
 
 class InventoryDashboardTests(TestCase):

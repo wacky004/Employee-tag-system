@@ -74,10 +74,30 @@ def _build_assignment_history(equipment):
     return assignment_history
 
 
-def _create_audit_log(action, actor, target, notes=""):
+def _user_can_access_all_companies(user):
+    return bool(user and user.can_manage_companies() and user.company_id is None)
+
+
+def _user_company(user):
+    if _user_can_access_all_companies(user):
+        return None
+    return getattr(user, "company", None)
+
+
+def _scoped_queryset(queryset, user):
+    if _user_can_access_all_companies(user):
+        return queryset
+    company = _user_company(user)
+    if company is None:
+        return queryset.none()
+    return queryset.filter(company=company)
+
+
+def _create_audit_log(action, actor, target, notes="", company=None):
     InventoryAuditLog.objects.create(
         action=action,
         actor=actor,
+        company=company or getattr(target, "company", None) or getattr(actor, "company", None),
         target_type=target._meta.model_name,
         target_id=target.pk,
         notes=notes,
@@ -134,17 +154,20 @@ def _parse_bool(value, default=True):
     raise forms.ValidationError(f"Invalid boolean value: {value}")
 
 
-def _resolve_category(value, row_number):
+def _resolve_category(value, row_number, *, company=None):
     lookup_value = _normalize_cell(value)
     if not lookup_value:
         return None
 
-    category = EquipmentCategory.objects.filter(Q(code__iexact=lookup_value) | Q(name__iexact=lookup_value)).first()
+    queryset = EquipmentCategory.objects.all()
+    if company is not None:
+        queryset = queryset.filter(company=company)
+    category = queryset.filter(Q(code__iexact=lookup_value) | Q(name__iexact=lookup_value)).first()
     if category:
         return category
 
     normalized_lookup = _normalize_lookup(lookup_value)
-    for candidate in EquipmentCategory.objects.all():
+    for candidate in queryset:
         if normalized_lookup in {_normalize_lookup(candidate.code), _normalize_lookup(candidate.name)}:
             return candidate
 
@@ -154,19 +177,22 @@ def _resolve_category(value, row_number):
     )
 
 
-def _resolve_supervisor(value, row_number):
+def _resolve_supervisor(value, row_number, *, company=None):
     lookup_value = _normalize_cell(value)
     if not lookup_value:
         return None
 
-    supervisor = Supervisor.objects.filter(
+    queryset = Supervisor.objects.all()
+    if company is not None:
+        queryset = queryset.filter(company=company)
+    supervisor = queryset.filter(
         Q(employee_code__iexact=lookup_value) | Q(full_name__iexact=lookup_value)
     ).first()
     if supervisor:
         return supervisor
 
     normalized_lookup = _normalize_lookup(lookup_value)
-    for candidate in Supervisor.objects.all():
+    for candidate in queryset:
         if normalized_lookup in {_normalize_lookup(candidate.employee_code), _normalize_lookup(candidate.full_name)}:
             return candidate
 
@@ -221,7 +247,7 @@ def _read_sheet_rows(workbook, sheet_name):
     return parsed_rows
 
 
-def _import_inventory_workbook(file_obj):
+def _import_inventory_workbook(file_obj, *, company=None):
     workbook = load_workbook(file_obj, data_only=True)
     results = {
         "categories": 0,
@@ -238,7 +264,9 @@ def _import_inventory_workbook(file_obj):
                 raise forms.ValidationError(f"Categories row {row_number} must include code and name.")
             EquipmentCategory.objects.update_or_create(
                 code=code,
+                company=company,
                 defaults={
+                    "company": company,
                     "name": name,
                     "description": _normalize_cell(row["description"]),
                     "is_active": _parse_bool(row["is_active"]),
@@ -255,7 +283,9 @@ def _import_inventory_workbook(file_obj):
                 )
             Supervisor.objects.update_or_create(
                 employee_code=employee_code,
+                company=company,
                 defaults={
+                    "company": company,
                     "full_name": full_name,
                     "department": _normalize_cell(row["department"]),
                     "job_title": _normalize_cell(row["job_title"]),
@@ -273,10 +303,12 @@ def _import_inventory_workbook(file_obj):
                     f"Employees row {row_number} must include employee_code and full_name."
                 )
             if _normalize_cell(row["supervisor_code"]):
-                supervisor = _resolve_supervisor(row["supervisor_code"], row_number)
+                supervisor = _resolve_supervisor(row["supervisor_code"], row_number, company=company)
             Employee.objects.update_or_create(
                 employee_code=employee_code,
+                company=company,
                 defaults={
+                    "company": company,
                     "full_name": full_name,
                     "department": _normalize_cell(row["department"]),
                     "team_name": _normalize_cell(row["team_name"]),
@@ -290,7 +322,7 @@ def _import_inventory_workbook(file_obj):
         for row_number, row in _read_sheet_rows(workbook, "Equipment"):
             asset_code = _normalize_cell(row["asset_code"])
             name = _normalize_cell(row["name"])
-            category = _resolve_category(row["category_code"], row_number)
+            category = _resolve_category(row["category_code"], row_number, company=company)
             status = _normalize_status(row["status"], row_number)
 
             if not asset_code or not name:
@@ -300,7 +332,9 @@ def _import_inventory_workbook(file_obj):
 
             Equipment.objects.update_or_create(
                 asset_code=asset_code,
+                company=company,
                 defaults={
+                    "company": company,
                     "name": name,
                     "category": category,
                     "brand": _normalize_cell(row["brand"]),
@@ -315,10 +349,19 @@ def _import_inventory_workbook(file_obj):
     return results
 
 
-def _build_inventory_workbook():
+def _build_inventory_workbook(*, company=None):
     workbook = Workbook()
     default_sheet = workbook.active
     workbook.remove(default_sheet)
+    category_queryset = EquipmentCategory.objects.order_by("name", "code")
+    supervisor_queryset = Supervisor.objects.order_by("full_name", "employee_code")
+    employee_queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+    equipment_queryset = Equipment.objects.select_related("category").order_by("asset_code", "name")
+    if company is not None:
+        category_queryset = category_queryset.filter(company=company)
+        supervisor_queryset = supervisor_queryset.filter(company=company)
+        employee_queryset = employee_queryset.filter(company=company)
+        equipment_queryset = equipment_queryset.filter(company=company)
 
     def populate_sheet(title, headers, rows):
         worksheet = workbook.create_sheet(title=title)
@@ -331,7 +374,7 @@ def _build_inventory_workbook():
         WORKBOOK_SHEETS["Categories"],
         [
             [category.code, category.name, category.description, "TRUE" if category.is_active else "FALSE"]
-            for category in EquipmentCategory.objects.order_by("name", "code")
+            for category in category_queryset
         ],
     )
     populate_sheet(
@@ -345,7 +388,7 @@ def _build_inventory_workbook():
                 supervisor.job_title,
                 "TRUE" if supervisor.is_active else "FALSE",
             ]
-            for supervisor in Supervisor.objects.order_by("full_name", "employee_code")
+            for supervisor in supervisor_queryset
         ],
     )
     populate_sheet(
@@ -361,7 +404,7 @@ def _build_inventory_workbook():
                 employee.supervisor.employee_code if employee.supervisor else "",
                 "TRUE" if employee.is_active else "FALSE",
             ]
-            for employee in Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+            for employee in employee_queryset
         ],
     )
     populate_sheet(
@@ -378,7 +421,7 @@ def _build_inventory_workbook():
                 equipment.status,
                 equipment.notes,
             ]
-            for equipment in Equipment.objects.select_related("category").order_by("asset_code", "name")
+            for equipment in equipment_queryset
         ],
     )
 
@@ -405,6 +448,7 @@ def _return_equipment_assignment(equipment, returned_at, notes, actor=None):
     equipment.save(update_fields=["current_employee"])
 
     EquipmentHistoryLog.objects.create(
+        company=equipment.company,
         equipment=equipment,
         employee=assignment.employee,
         assignment=assignment,
@@ -417,6 +461,7 @@ def _return_equipment_assignment(equipment, returned_at, notes, actor=None):
         actor,
         equipment,
         notes=notes or f"Returned from employee {assignment.employee.full_name}.",
+        company=equipment.company,
     )
     return assignment
 
@@ -424,7 +469,9 @@ def _return_equipment_assignment(equipment, returned_at, notes, actor=None):
 def _return_all_employee_equipment(employee, returned_at, actor=None):
     returned_count = 0
     notes = f"Automatically returned because {employee.full_name} was marked inactive."
-    assigned_equipment = Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+    assigned_equipment = Equipment.objects.filter(company=employee.company, current_employee=employee).order_by(
+        "asset_code", "name"
+    )
 
     for equipment in assigned_equipment:
         assignment = _return_equipment_assignment(
@@ -454,6 +501,20 @@ class InventoryAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
         if self.request.user.is_authenticated:
             return redirect(_dashboard_url(self.request.user))
         return super().handle_no_permission()
+
+    def scoped_queryset(self, queryset):
+        return _scoped_queryset(queryset, self.request.user)
+
+    def inventory_company(self):
+        return _user_company(self.request.user)
+
+    def can_access_all_companies(self):
+        return _user_can_access_all_companies(self.request.user)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
 
 
 class SuperAdminInventoryAccessMixin(InventoryAccessMixin):
@@ -489,7 +550,7 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
 
         if action in form_map:
             context_key, form_class, success_message = form_map[action]
-            form = form_class(request.POST, prefix=context_key.split("_")[0])
+            form = form_class(request.POST, prefix=context_key.split("_")[0], user=request.user)
             if form.is_valid():
                 instance = form.save()
                 audit_action_map = {
@@ -505,7 +566,7 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             return self.render_to_response(self.get_context_data(**{context_key: form}))
 
         if action == "assign_equipment":
-            form = EquipmentAssignmentForm(request.POST, prefix="assignment")
+            form = EquipmentAssignmentForm(request.POST, prefix="assignment", user=request.user)
             if form.is_valid():
                 self._assign_equipment(
                     equipment=form.cleaned_data["equipment"],
@@ -522,7 +583,10 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             form = InventoryWorkbookImportForm(request.POST, request.FILES, prefix="workbook")
             if form.is_valid():
                 try:
-                    results = _import_inventory_workbook(form.cleaned_data["workbook"])
+                    results = _import_inventory_workbook(
+                        form.cleaned_data["workbook"],
+                        company=self.inventory_company(),
+                    )
                 except forms.ValidationError as exc:
                     form.add_error("workbook", exc.message)
                     messages.error(request, "Workbook import failed. Please fix the file and try again.")
@@ -553,7 +617,9 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
         selected_employee_id = self.request.GET.get("employee", "").strip()
         selected_equipment_id = self.request.GET.get("equipment", "").strip()
 
-        employees = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        employees = self.scoped_queryset(
+            Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        )
         if query:
             employees = employees.filter(
                 Q(full_name__icontains=query)
@@ -565,15 +631,21 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             )
 
         supervisors = list(
-            Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name")
+            self.scoped_queryset(
+                Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name")
+            )
         )
         selected_employee = None
         if selected_employee_id:
-            selected_employee = Employee.objects.select_related("supervisor").filter(pk=selected_employee_id).first()
+            selected_employee = self.scoped_queryset(
+                Employee.objects.select_related("supervisor")
+            ).filter(pk=selected_employee_id).first()
         elif query:
             selected_employee = employees.first()
 
-        equipment_list = Equipment.objects.select_related("category", "current_employee").order_by("asset_code", "name")
+        equipment_list = self.scoped_queryset(
+            Equipment.objects.select_related("category", "current_employee").order_by("asset_code", "name")
+        )
         selected_equipment = None
         if selected_equipment_id:
             selected_equipment = equipment_list.filter(pk=selected_equipment_id).first()
@@ -585,37 +657,49 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
         total_assigned = equipment_list.filter(current_employee__isnull=False).count()
         total_available = equipment_list.filter(current_employee__isnull=True).count()
         recent_activity = list(
-            InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")[:8]
+            self.scoped_queryset(
+                InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+            )[:8]
         )
 
         context.update(
             {
-                "supervisor_form": kwargs.get("supervisor_form") or SupervisorForm(prefix="supervisor"),
-                "employee_form": kwargs.get("employee_form") or EmployeeForm(prefix="employee"),
-                "category_form": kwargs.get("category_form") or EquipmentCategoryForm(prefix="category"),
-                "equipment_form": kwargs.get("equipment_form") or EquipmentForm(prefix="equipment"),
-                "assignment_form": kwargs.get("assignment_form") or EquipmentAssignmentForm(prefix="assignment"),
+                "supervisor_form": kwargs.get("supervisor_form") or SupervisorForm(prefix="supervisor", user=self.request.user),
+                "employee_form": kwargs.get("employee_form") or EmployeeForm(prefix="employee", user=self.request.user),
+                "category_form": kwargs.get("category_form") or EquipmentCategoryForm(prefix="category", user=self.request.user),
+                "equipment_form": kwargs.get("equipment_form") or EquipmentForm(prefix="equipment", user=self.request.user),
+                "assignment_form": kwargs.get("assignment_form") or EquipmentAssignmentForm(prefix="assignment", user=self.request.user),
                 "workbook_form": kwargs.get("workbook_form") or InventoryWorkbookImportForm(prefix="workbook"),
                 "workbook_sheet_map": WORKBOOK_SHEETS,
                 "open_workbook_modal": kwargs.get("open_workbook_modal", False),
                 "supervisors": supervisors,
                 "employees": list(employees),
                 "equipment_list": list(equipment_list),
-                "equipment_categories": list(EquipmentCategory.objects.order_by("name")),
+                "equipment_categories": list(
+                    self.scoped_queryset(EquipmentCategory.objects.order_by("name"))
+                ),
                 "recent_assignments": list(
-                    EquipmentAssignment.objects.select_related("equipment", "employee", "assigned_by")[:10]
+                    self.scoped_queryset(
+                        EquipmentAssignment.objects.select_related("equipment", "employee", "assigned_by")
+                    )[:10]
                 ),
                 "selected_employee": selected_employee,
                 "selected_employee_current_equipment": list(
-                    Equipment.objects.filter(current_employee=selected_employee).order_by("asset_code", "name")
+                    self.scoped_queryset(
+                        Equipment.objects.filter(current_employee=selected_employee).order_by("asset_code", "name")
+                    )
                 ) if selected_employee else [],
                 "selected_employee_history": list(
-                    EquipmentAssignment.objects.select_related("equipment", "assigned_by")
+                    self.scoped_queryset(
+                        EquipmentAssignment.objects.select_related("equipment", "assigned_by")
+                    )
                     .filter(employee=selected_employee)
                 ) if selected_employee else [],
                 "selected_equipment": selected_equipment,
                 "selected_equipment_history": list(
-                    EquipmentHistoryLog.objects.select_related("employee", "assignment")
+                    self.scoped_queryset(
+                        EquipmentHistoryLog.objects.select_related("employee", "assignment")
+                    )
                     .filter(equipment=selected_equipment)
                 ) if selected_equipment else [],
                 "query": query,
@@ -626,7 +710,7 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 "total_assigned": total_assigned,
                 "total_available": total_available,
                 "total_defective": summary_counts.get(Equipment.Status.DEFECTIVE, 0),
-                "total_employees": Employee.objects.count(),
+                "total_employees": self.scoped_queryset(Employee.objects.all()).count(),
                 "recent_activity": recent_activity,
                 "status_cards": [
                     {"code": code, "label": label, "total": summary_counts.get(code, 0)}
@@ -644,6 +728,7 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             open_assignment.returned_at = now
             open_assignment.save(update_fields=["returned_at"])
             EquipmentHistoryLog.objects.create(
+                company=equipment.company,
                 equipment=equipment,
                 employee=open_assignment.employee,
                 assignment=open_assignment,
@@ -656,9 +741,11 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
                 assigned_by,
                 equipment,
                 notes="Automatically closed before reassignment.",
+                company=equipment.company,
             )
 
         assignment = EquipmentAssignment.objects.create(
+            company=equipment.company,
             equipment=equipment,
             employee=employee,
             assigned_by=assigned_by,
@@ -675,6 +762,7 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
         equipment.save(update_fields=update_fields)
 
         EquipmentHistoryLog.objects.create(
+            company=equipment.company,
             equipment=equipment,
             employee=employee,
             assignment=assignment,
@@ -687,10 +775,12 @@ class InventoryDashboardView(InventoryAccessMixin, TemplateView):
             assigned_by,
             equipment,
             notes=remarks or f"Assigned to {employee.full_name}.",
+            company=equipment.company,
         )
 
         if status:
             EquipmentHistoryLog.objects.create(
+                company=equipment.company,
                 equipment=equipment,
                 employee=employee,
                 assignment=assignment,
@@ -705,10 +795,11 @@ class InventorySummaryView(InventoryAccessMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        total_equipment = Equipment.objects.count()
-        assigned_equipment = Equipment.objects.filter(current_employee__isnull=False).count()
+        equipment_queryset = self.scoped_queryset(Equipment.objects.all())
+        total_equipment = equipment_queryset.count()
+        assigned_equipment = equipment_queryset.filter(current_employee__isnull=False).count()
         status_totals = {code: 0 for code, _label in Equipment.Status.choices}
-        for row in Equipment.objects.values("status").annotate(total=Count("id")):
+        for row in equipment_queryset.values("status").annotate(total=Count("id")):
             status_totals[row["status"]] = row["total"]
 
         context.update(
@@ -716,8 +807,8 @@ class InventorySummaryView(InventoryAccessMixin, TemplateView):
                 "total_equipment": total_equipment,
                 "assigned_equipment": assigned_equipment,
                 "unassigned_equipment": total_equipment - assigned_equipment,
-                "total_supervisors": Supervisor.objects.count(),
-                "total_employees": Employee.objects.count(),
+                "total_supervisors": self.scoped_queryset(Supervisor.objects.all()).count(),
+                "total_employees": self.scoped_queryset(Employee.objects.all()).count(),
                 "status_cards": [
                     {"code": code, "label": label, "total": status_totals.get(code, 0)}
                     for code, label in Equipment.Status.choices
@@ -734,13 +825,20 @@ class AuditLogListView(SuperAdminInventoryAccessMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        return InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+        return self.scoped_queryset(
+            InventoryAuditLog.objects.select_related("actor").order_by("-timestamp", "-id")
+        )
 
 
 class InventoryWorkbookView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, FormView):
     form_class = InventoryWorkbookImportForm
     template_name = "inventory/workbook.html"
     failure_message = "Workbook import failed. Please fix the file and try again."
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs.pop("user", None)
+        return kwargs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -749,7 +847,10 @@ class InventoryWorkbookView(InventoryFeedbackMixin, SuperAdminInventoryAccessMix
 
     def form_valid(self, form):
         try:
-            results = _import_inventory_workbook(form.cleaned_data["workbook"])
+            results = _import_inventory_workbook(
+                form.cleaned_data["workbook"],
+                company=self.inventory_company(),
+            )
         except forms.ValidationError as exc:
             form.add_error("workbook", exc.message)
             return self.form_invalid(form)
@@ -767,7 +868,7 @@ class InventoryWorkbookView(InventoryFeedbackMixin, SuperAdminInventoryAccessMix
 
 class InventoryWorkbookExportView(SuperAdminInventoryAccessMixin, View):
     def get(self, request, *args, **kwargs):
-        payload = _build_inventory_workbook()
+        payload = _build_inventory_workbook(company=self.inventory_company())
         response = HttpResponse(
             payload,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -785,11 +886,13 @@ class EquipmentReportListView(InventoryAccessMixin, ListView):
     report_description = "Browse equipment with filter options."
 
     def get_queryset(self):
-        queryset = Equipment.objects.select_related(
+        queryset = self.scoped_queryset(
+            Equipment.objects.select_related(
             "category",
             "current_employee",
             "current_employee__supervisor",
-        ).order_by("asset_code", "name")
+            ).order_by("asset_code", "name")
+        )
         return _filter_equipment_queryset(queryset, self.request.GET)
 
     def get_context_data(self, **kwargs):
@@ -799,8 +902,8 @@ class EquipmentReportListView(InventoryAccessMixin, ListView):
                 "report_title": self.report_title,
                 "report_description": self.report_description,
                 "status_choices": Equipment.Status.choices,
-                "categories": EquipmentCategory.objects.order_by("name"),
-                "supervisors": Supervisor.objects.order_by("full_name", "employee_code"),
+                "categories": self.scoped_queryset(EquipmentCategory.objects.order_by("name")),
+                "supervisors": self.scoped_queryset(Supervisor.objects.order_by("full_name", "employee_code")),
                 "selected_status": self.request.GET.get("status", "").strip(),
                 "selected_category": self.request.GET.get("category", "").strip(),
                 "brand_query": self.request.GET.get("brand", "").strip(),
@@ -816,11 +919,11 @@ class DefectiveEquipmentReportView(EquipmentReportListView):
     report_description = "All equipment currently marked as defective."
 
     def get_queryset(self):
-        queryset = Equipment.objects.select_related(
+        queryset = self.scoped_queryset(Equipment.objects.select_related(
             "category",
             "current_employee",
             "current_employee__supervisor",
-        ).filter(status=Equipment.Status.DEFECTIVE).order_by("asset_code", "name")
+        )).filter(status=Equipment.Status.DEFECTIVE).order_by("asset_code", "name")
         return queryset
 
 
@@ -829,11 +932,11 @@ class UnusedEquipmentReportView(EquipmentReportListView):
     report_description = "All equipment currently marked as unused."
 
     def get_queryset(self):
-        queryset = Equipment.objects.select_related(
+        queryset = self.scoped_queryset(Equipment.objects.select_related(
             "category",
             "current_employee",
             "current_employee__supervisor",
-        ).filter(status=Equipment.Status.UNUSED).order_by("asset_code", "name")
+        )).filter(status=Equipment.Status.UNUSED).order_by("asset_code", "name")
         return queryset
 
 
@@ -842,11 +945,11 @@ class AssignedEquipmentReportView(EquipmentReportListView):
     report_description = "All equipment currently assigned to employees."
 
     def get_queryset(self):
-        queryset = Equipment.objects.select_related(
+        queryset = self.scoped_queryset(Equipment.objects.select_related(
             "category",
             "current_employee",
             "current_employee__supervisor",
-        ).filter(current_employee__isnull=False).order_by("asset_code", "name")
+        )).filter(current_employee__isnull=False).order_by("asset_code", "name")
         return queryset
 
 
@@ -855,11 +958,11 @@ class UnassignedEquipmentReportView(EquipmentReportListView):
     report_description = "All equipment currently available for assignment."
 
     def get_queryset(self):
-        queryset = Equipment.objects.select_related(
+        queryset = self.scoped_queryset(Equipment.objects.select_related(
             "category",
             "current_employee",
             "current_employee__supervisor",
-        ).filter(current_employee__isnull=True).order_by("asset_code", "name")
+        )).filter(current_employee__isnull=True).order_by("asset_code", "name")
         return queryset
 
 
@@ -870,6 +973,8 @@ class EquipmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin
     failure_message = "Equipment creation failed. Please review the form and try again."
 
     def form_valid(self, form):
+        if self.inventory_company() and not form.instance.company_id:
+            form.instance.company = self.inventory_company()
         response = super().form_valid(form)
         _create_audit_log(InventoryAuditLog.Action.EQUIPMENT_CREATED, self.request.user, self.object)
         messages.success(self.request, "Equipment record created successfully.")
@@ -884,6 +989,13 @@ class EquipmentAssignmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryA
     template_name = "inventory/equipment_assignment_create.html"
     failure_message = "Equipment assignment failed. Please review the form and try again."
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        form = context["form"]
+        equipment_queryset = form.fields["equipment"].queryset.select_related("category", "current_employee")
+        context["assignable_equipment"] = list(equipment_queryset)
+        return context
+
     def form_valid(self, form):
         assignment = self._assign_equipment(
             equipment=form.cleaned_data["equipment"],
@@ -897,6 +1009,7 @@ class EquipmentAssignmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryA
 
     def _assign_equipment(self, equipment, employee, assigned_by, assigned_at, notes):
         assignment = EquipmentAssignment.objects.create(
+            company=equipment.company,
             equipment=equipment,
             employee=employee,
             assigned_by=assigned_by,
@@ -908,6 +1021,7 @@ class EquipmentAssignmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryA
         equipment.save(update_fields=["current_employee", "last_assigned_at"])
 
         EquipmentHistoryLog.objects.create(
+            company=equipment.company,
             equipment=equipment,
             employee=employee,
             assignment=assignment,
@@ -920,6 +1034,7 @@ class EquipmentAssignmentCreateView(InventoryFeedbackMixin, SuperAdminInventoryA
             assigned_by,
             equipment,
             notes=notes or f"Assigned to {employee.full_name}.",
+            company=equipment.company,
         )
         return assignment
 
@@ -928,6 +1043,9 @@ class EquipmentDetailView(SuperAdminInventoryAccessMixin, DetailView):
     model = Equipment
     template_name = "inventory/equipment_detail.html"
     context_object_name = "equipment"
+
+    def get_queryset(self):
+        return self.scoped_queryset(Equipment.objects.select_related("category", "current_employee"))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -960,6 +1078,9 @@ class EquipmentHistoryView(SuperAdminInventoryAccessMixin, DetailView):
     template_name = "inventory/equipment_history.html"
     context_object_name = "equipment"
 
+    def get_queryset(self):
+        return self.scoped_queryset(Equipment.objects.select_related("category", "current_employee"))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["assignment_history"] = _build_assignment_history(self.object)
@@ -972,7 +1093,9 @@ class SupervisorListView(SuperAdminInventoryAccessMixin, ListView):
     context_object_name = "supervisors"
 
     def get_queryset(self):
-        return Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name", "employee_code")
+        return self.scoped_queryset(
+            Supervisor.objects.annotate(member_count=Count("employees")).order_by("full_name", "employee_code")
+        )
 
 
 class SupervisorCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
@@ -982,6 +1105,8 @@ class SupervisorCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixi
     failure_message = "Supervisor creation failed. Please review the form and try again."
 
     def form_valid(self, form):
+        if self.inventory_company() and not form.instance.company_id:
+            form.instance.company = self.inventory_company()
         response = super().form_valid(form)
         _create_audit_log(InventoryAuditLog.Action.SUPERVISOR_CREATED, self.request.user, self.object)
         messages.success(self.request, "Supervisor created successfully.")
@@ -997,7 +1122,7 @@ class EquipmentCategoryListView(SuperAdminInventoryAccessMixin, ListView):
     context_object_name = "categories"
 
     def get_queryset(self):
-        return EquipmentCategory.objects.order_by("name", "code")
+        return self.scoped_queryset(EquipmentCategory.objects.order_by("name", "code"))
 
 
 class EquipmentCategoryCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, CreateView):
@@ -1007,6 +1132,8 @@ class EquipmentCategoryCreateView(InventoryFeedbackMixin, SuperAdminInventoryAcc
     failure_message = "Category creation failed. Please review the form and try again."
 
     def form_valid(self, form):
+        if self.inventory_company() and not form.instance.company_id:
+            form.instance.company = self.inventory_company()
         messages.success(self.request, "Equipment category created successfully.")
         return super().form_valid(form)
 
@@ -1019,6 +1146,9 @@ class SupervisorUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixi
     form_class = SupervisorForm
     template_name = "inventory/supervisor_update.html"
     failure_message = "Supervisor update failed. Please review the form and try again."
+
+    def get_queryset(self):
+        return self.scoped_queryset(Supervisor.objects.all())
 
     def form_valid(self, form):
         messages.success(self.request, "Supervisor updated successfully.")
@@ -1034,7 +1164,9 @@ class EmployeeListView(SuperAdminInventoryAccessMixin, ListView):
     context_object_name = "employees"
 
     def get_queryset(self):
-        queryset = Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        queryset = self.scoped_queryset(
+            Employee.objects.select_related("supervisor").order_by("full_name", "employee_code")
+        )
         query = self.request.GET.get("q", "").strip()
         supervisor_id = self.request.GET.get("supervisor", "").strip()
 
@@ -1052,7 +1184,9 @@ class EmployeeListView(SuperAdminInventoryAccessMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["query"] = self.request.GET.get("q", "").strip()
         context["selected_supervisor"] = self.request.GET.get("supervisor", "").strip()
-        context["supervisors"] = Supervisor.objects.order_by("full_name", "employee_code")
+        context["supervisors"] = self.scoped_queryset(
+            Supervisor.objects.order_by("full_name", "employee_code")
+        )
         return context
 
 
@@ -1062,8 +1196,10 @@ class EmployeeSearchView(SuperAdminInventoryAccessMixin, ListView):
     context_object_name = "employees"
 
     def get_queryset(self):
-        queryset = Employee.objects.select_related("supervisor").prefetch_related("current_equipment").order_by(
-            "full_name", "employee_code"
+        queryset = self.scoped_queryset(
+            Employee.objects.select_related("supervisor").prefetch_related("current_equipment").order_by(
+                "full_name", "employee_code"
+            )
         )
         self.form = EmployeeSearchForm(self.request.GET or None)
         if self.form.is_valid():
@@ -1087,14 +1223,19 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
     template_name = "inventory/employee_detail.html"
     context_object_name = "employee"
 
+    def get_queryset(self):
+        return self.scoped_queryset(Employee.objects.select_related("supervisor"))
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         employee = self.object
         current_equipment = list(
-            Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+            self.scoped_queryset(
+                Equipment.objects.filter(current_employee=employee).order_by("asset_code", "name")
+            )
         )
-        context["assignment_history"] = EquipmentAssignment.objects.select_related(
-            "equipment", "assigned_by"
+        context["assignment_history"] = self.scoped_queryset(
+            EquipmentAssignment.objects.select_related("equipment", "assigned_by")
         ).filter(employee=employee).order_by("-assigned_at", "-id")
         context["current_equipment"] = current_equipment
         context["current_equipment_rows"] = kwargs.get("current_equipment_rows") or [
@@ -1109,7 +1250,7 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         equipment = get_object_or_404(
-            Equipment.objects.select_related("current_employee"),
+            self.scoped_queryset(Equipment.objects.select_related("current_employee")),
             pk=request.POST.get("equipment_id"),
             current_employee=self.object,
         )
@@ -1128,7 +1269,9 @@ class EmployeeDetailView(SuperAdminInventoryAccessMixin, DetailView):
             return redirect("inventory:employee-detail", pk=self.object.pk)
 
         current_equipment = list(
-            Equipment.objects.filter(current_employee=self.object).order_by("asset_code", "name")
+            self.scoped_queryset(
+                Equipment.objects.filter(current_employee=self.object).order_by("asset_code", "name")
+            )
         )
         current_equipment_rows = []
         for item in current_equipment:
@@ -1148,6 +1291,8 @@ class EmployeeCreateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin,
     failure_message = "Employee creation failed. Please review the form and try again."
 
     def form_valid(self, form):
+        if self.inventory_company() and not form.instance.company_id:
+            form.instance.company = self.inventory_company()
         response = super().form_valid(form)
         _create_audit_log(InventoryAuditLog.Action.EMPLOYEE_CREATED, self.request.user, self.object)
         messages.success(self.request, "Employee created successfully.")
@@ -1162,6 +1307,9 @@ class EmployeeUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin,
     form_class = EmployeeForm
     template_name = "inventory/employee_update.html"
     failure_message = "Employee update failed. Please review the form and try again."
+
+    def get_queryset(self):
+        return self.scoped_queryset(Employee.objects.select_related("supervisor"))
 
     def form_valid(self, form):
         original = self.get_object()
@@ -1198,12 +1346,20 @@ class EmployeeAssignSupervisorView(InventoryFeedbackMixin, SuperAdminInventoryAc
         messages.success(self.request, "Employee assigned to supervisor successfully.")
         return redirect("inventory:employee-list")
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
 
 class EquipmentUpdateView(InventoryFeedbackMixin, SuperAdminInventoryAccessMixin, UpdateView):
     model = Equipment
     form_class = EquipmentForm
     template_name = "inventory/equipment_update.html"
     failure_message = "Equipment update failed. Please review the form and try again."
+
+    def get_queryset(self):
+        return self.scoped_queryset(Equipment.objects.select_related("category", "current_employee"))
 
     def form_valid(self, form):
         original = self.get_object()

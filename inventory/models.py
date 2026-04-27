@@ -4,6 +4,13 @@ from django.utils import timezone
 
 
 class Supervisor(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_supervisors",
+    )
     full_name = models.CharField(max_length=150)
     employee_code = models.CharField(max_length=30, unique=True)
     department = models.CharField(max_length=100, blank=True)
@@ -20,6 +27,13 @@ class Supervisor(models.Model):
 
 
 class Employee(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_employees",
+    )
     full_name = models.CharField(max_length=150)
     employee_code = models.CharField(max_length=30, unique=True)
     department = models.CharField(max_length=100, blank=True)
@@ -44,6 +58,13 @@ class Employee(models.Model):
 
 
 class EquipmentCategory(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_equipment_categories",
+    )
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=30, unique=True)
     description = models.TextField(blank=True)
@@ -66,6 +87,13 @@ class Equipment(models.Model):
         DEFECTIVE = "DEFECTIVE", "Defective"
         TO_BE_CHECKED = "TO_BE_CHECKED", "To Be Checked"
 
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_equipment",
+    )
     asset_code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=150)
     category = models.ForeignKey(
@@ -103,6 +131,13 @@ class Equipment(models.Model):
 
 
 class EquipmentAssignment(models.Model):
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_equipment_assignments",
+    )
     equipment = models.ForeignKey(
         Equipment,
         on_delete=models.CASCADE,
@@ -138,6 +173,13 @@ class EquipmentHistoryLog(models.Model):
         RETURNED = "RETURNED", "Returned"
         STATUS_CHANGED = "STATUS_CHANGED", "Status Changed"
 
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_equipment_history_logs",
+    )
     equipment = models.ForeignKey(
         Equipment,
         on_delete=models.CASCADE,
@@ -183,6 +225,13 @@ class InventoryAuditLog(models.Model):
         EMPLOYEE_CREATED = "EMPLOYEE_CREATED", "Employee Created"
         SUPERVISOR_CREATED = "SUPERVISOR_CREATED", "Supervisor Created"
 
+    company = models.ForeignKey(
+        "accounts.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_audit_logs_scope",
+    )
     action = models.CharField(max_length=30, choices=Action.choices)
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,
