@@ -43,13 +43,14 @@ class TaggingDashboardView(TaggingAccessMixin, TemplateView):
             .annotate(total=Count("id"))
             .order_by("tag_type__name")
         )
+        effective_tag_types = TagType.effective_for_company(self.request.user.company if self.request.user.company_id else None)
 
         context.update(
             {
                 "work_date": work_date,
                 "total_logs_today": today_logs.count(),
                 "employees_tagged_today": today_logs.values("employee_id").distinct().count(),
-                "active_tag_types": TagType.objects.filter(is_active=True).count(),
+                "active_tag_types": len(effective_tag_types),
                 "recent_logs": list(today_logs.order_by("-timestamp", "-id")[:10]),
                 "summary_rows": list(summary_rows),
             }

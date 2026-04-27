@@ -56,6 +56,7 @@ class CorrectionRequestCreateView(RoleRequiredMixin, FormView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
+        kwargs["company"] = self.request.user.company if self.request.user.company_id else None
         if self.request.method == "GET":
             kwargs["initial"] = {
                 "target_work_date": self.request.GET.get("target_work_date", ""),
@@ -67,7 +68,9 @@ class CorrectionRequestCreateView(RoleRequiredMixin, FormView):
             tag_code = self.request.GET.get("tag_code", "").strip()
             if tag_code:
                 try:
-                    kwargs["initial"]["requested_tag_type"] = TagType.objects.get(code=tag_code)
+                    kwargs["initial"]["requested_tag_type"] = TagType.active_for_company(
+                        self.request.user.company if self.request.user.company_id else None
+                    ).get(code=tag_code)
                 except Exception:
                     pass
             requested_timestamp = self.request.GET.get("requested_timestamp", "").strip()

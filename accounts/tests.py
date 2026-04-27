@@ -208,7 +208,7 @@ class EmployeeDashboardTaggingTests(TestCase):
         self.assertFalse(controls["lunch"]["enabled"])
         self.assertFalse(controls["break"]["enabled"])
         self.assertTrue(controls["bio"]["enabled"])
-        self.assertEqual(controls["bio"]["button_label"], "Bio End")
+        self.assertEqual(controls["bio"]["button_label"], "Bio In")
 
     def test_tagging_state_blocks_other_auxiliary_tags_while_one_is_active(self):
         work_date = timezone.localdate()
@@ -260,6 +260,101 @@ class EmployeeDashboardTaggingTests(TestCase):
                 direction=direction,
                 sort_order=index,
             )
+
+
+class TenantTagTypeBehaviorTests(TestCase):
+    def setUp(self):
+        self.company = Company.objects.create(
+            name="Tenant Tag Co",
+            code="TENANTTAG",
+            can_use_tagging=True,
+        )
+        self.employee = User.objects.create_user(
+            username="tenant-employee",
+            password="password123",
+            email="tenant-employee@example.com",
+            role=User.Role.EMPLOYEE,
+            company=self.company,
+        )
+        EmployeeProfile.objects.create(
+            user=self.employee,
+            employee_code="TEN001",
+            schedule_start_time=time(8, 0),
+            schedule_end_time=time(17, 0),
+            default_work_mode="ONSITE",
+        )
+        TagType.objects.create(
+            code="TIME_IN",
+            name="Time In",
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.IN,
+            sort_order=1,
+        )
+        TagType.objects.create(
+            code="TIME_OUT",
+            name="Time Out",
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.OUT,
+            sort_order=2,
+        )
+        TagType.objects.create(
+            code="LUNCH_OUT",
+            name="Lunch Out",
+            category=TagType.Category.LUNCH,
+            direction=TagType.Direction.OUT,
+            default_allowed_minutes=60,
+            sort_order=3,
+        )
+        TagType.objects.create(
+            code="LUNCH_IN",
+            name="Lunch In",
+            category=TagType.Category.LUNCH,
+            direction=TagType.Direction.IN,
+            sort_order=4,
+        )
+        TagType.objects.create(
+            code="TENANT_SHIFT_IN",
+            name="Start Duty",
+            company=self.company,
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.IN,
+            sort_order=1,
+        )
+        TagType.objects.create(
+            code="TENANT_SHIFT_OUT",
+            name="End Duty",
+            company=self.company,
+            category=TagType.Category.SHIFT,
+            direction=TagType.Direction.OUT,
+            sort_order=2,
+        )
+        TagType.objects.create(
+            code="TENANT_LUNCH_OUT",
+            name="Meal Start",
+            company=self.company,
+            category=TagType.Category.LUNCH,
+            direction=TagType.Direction.OUT,
+            default_allowed_minutes=45,
+            sort_order=3,
+        )
+        TagType.objects.create(
+            code="TENANT_LUNCH_IN",
+            name="Meal End",
+            company=self.company,
+            category=TagType.Category.LUNCH,
+            direction=TagType.Direction.IN,
+            sort_order=4,
+        )
+
+    def test_employee_dashboard_uses_company_specific_tag_types(self):
+        self.client.force_login(self.employee)
+
+        response = self.client.get(reverse("accounts:employee-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Start Duty")
+        self.assertContains(response, "Meal Start")
+        self.assertNotContains(response, '>Time In<', html=False)
 
 
 class ModuleAccessManagementTests(TestCase):
@@ -814,3 +909,29 @@ class TenantAdminTests(TestCase):
         self.assertFalse(self.company.can_use_tagging)
         self.assertFalse(self.company.can_use_inventory)
         self.assertFalse(self.company.can_use_queueing)
+
+    def test_tenant_super_admin_can_create_company_tag_type(self):
+        self.client.force_login(self.tenant_super_admin)
+        response = self.client.post(
+            reverse("tenant_admin:tagging_tagtype_add"),
+            {
+                "code": "TENANT_BIO_OUT",
+                "name": "Quick Bio Start",
+                "category": TagType.Category.BIO,
+                "direction": TagType.Direction.OUT,
+                "default_allowed_minutes": 12,
+                "is_active": "on",
+                "sort_order": 9,
+                "_save": "Save",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            TagType.objects.filter(
+                code="TENANT_BIO_OUT",
+                company=self.company,
+                category=TagType.Category.BIO,
+            ).exists()
+        )

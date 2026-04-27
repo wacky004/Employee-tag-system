@@ -6,6 +6,13 @@ from .models import CorrectionRequest
 
 
 class CorrectionRequestForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        company = kwargs.pop("company", None)
+        super().__init__(*args, **kwargs)
+        tag_type_ids = [tag_type.pk for tag_type in TagType.effective_for_company(company)]
+        self.fields["requested_tag_type"].queryset = TagType.objects.filter(pk__in=tag_type_ids).order_by("sort_order", "name")
+        self.fields["details"].required = False
+
     class Meta:
         model = CorrectionRequest
         fields = [
@@ -22,11 +29,6 @@ class CorrectionRequestForm(forms.ModelForm):
             "target_work_date": forms.DateInput(attrs={"type": "date"}),
             "requested_timestamp": forms.DateTimeInput(attrs={"type": "datetime-local"}),
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["requested_tag_type"].queryset = TagType.objects.filter(is_active=True).order_by("sort_order", "name")
-        self.fields["details"].required = False
 
 
 class CorrectionReviewForm(forms.Form):

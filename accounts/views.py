@@ -62,17 +62,6 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
     def test_func(self):
         return self.request.user.has_tagging_module_access()
 
-    TAG_BUTTONS = (
-        ("TIME_IN", "Time In"),
-        ("TIME_OUT", "Time Out"),
-        ("LUNCH_OUT", "Lunch Start"),
-        ("LUNCH_IN", "Lunch End"),
-        ("BREAK_OUT", "Break Start"),
-        ("BREAK_IN", "Break End"),
-        ("BIO_OUT", "Bio Start"),
-        ("BIO_IN", "Bio End"),
-    )
-
     def post(self, request, *args, **kwargs):
         action = request.POST.get("tag_action", "").strip()
         work_date = timezone.localdate()
@@ -92,6 +81,8 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
         tag_history = list(reversed(tag_state["logs"]))
         latest_tag = tag_history[0].tag_type.code if tag_history else None
         latest_tag_label = tag_history[0].tag_type.name if tag_history else ""
+        shift_in_tag = tag_state["shift_in_tag"]
+        shift_out_tag = tag_state["shift_out_tag"]
         default_work_mode = ""
         try:
             default_work_mode = self.request.user.employee_profile.default_work_mode
@@ -129,16 +120,16 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
                 "latest_tag_label": latest_tag_label,
                 "default_work_mode": default_work_mode,
                 "time_in_button": {
-                    "code": "TIME_IN",
-                    "label": "Time In",
-                    "enabled": "TIME_IN" in valid_codes,
-                    "visible": not has_timed_in or has_timed_out,
+                    "code": shift_in_tag.code if shift_in_tag else "",
+                    "label": shift_in_tag.name if shift_in_tag else "Time In",
+                    "enabled": bool(shift_in_tag and shift_in_tag.code in valid_codes),
+                    "visible": bool(shift_in_tag) and (not has_timed_in or has_timed_out),
                 },
                 "time_out_button": {
-                    "code": "TIME_OUT",
-                    "label": "Time Out",
-                    "enabled": "TIME_OUT" in valid_codes,
-                    "visible": has_timed_in and not has_timed_out,
+                    "code": shift_out_tag.code if shift_out_tag else "",
+                    "label": shift_out_tag.name if shift_out_tag else "Time Out",
+                    "enabled": bool(shift_out_tag and shift_out_tag.code in valid_codes),
+                    "visible": bool(shift_out_tag) and has_timed_in and not has_timed_out,
                 },
                 "tag_controls": list(tag_state["controls"].values()),
                 "tag_history": tag_history,
@@ -156,6 +147,8 @@ class EmployeeDashboardView(RoleRequiredMixin, TemplateView):
                 "cooldown_active": tag_state["cooldown_active"],
                 "cooldown_remaining_seconds": tag_state["cooldown_remaining_seconds"],
                 "cooldown_hours": tag_state["cooldown_hours"],
+                "history_time_in_code": shift_in_tag.code if shift_in_tag else "TIME_IN",
+                "history_time_out_code": shift_out_tag.code if shift_out_tag else "TIME_OUT",
             }
         )
         return context

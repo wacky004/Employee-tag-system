@@ -467,18 +467,45 @@ class TenantScopedCorrectionRequestAdmin(TenantScopedAdminMixin, admin.ModelAdmi
 
 class TenantScopedTagTypeAdmin(TenantScopedAdminMixin, admin.ModelAdmin):
     required_module = "tagging"
-    list_display = ("code", "name", "category", "direction", "default_allowed_minutes", "is_active")
-    list_filter = ("category", "direction", "is_active")
-    search_fields = ("code", "name")
+    list_display = ("code", "name", "company", "category", "direction", "default_allowed_minutes", "is_active")
+    list_filter = ("company", "category", "direction", "is_active")
+    search_fields = ("code", "name", "company__name", "company__code")
 
-    def has_add_permission(self, request):
-        return request.user.can_manage_companies()
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("company")
+        if request.user.can_manage_companies():
+            return queryset
+        return queryset.filter(company=request.user.company)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "company" and not request.user.can_manage_companies():
+            kwargs["queryset"] = Company.objects.filter(pk=request.user.company_id)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        if not request.user.can_manage_companies():
+            readonly_fields.append("company")
+        return tuple(dict.fromkeys(readonly_fields))
 
     def has_change_permission(self, request, obj=None):
-        return request.user.can_manage_companies()
+        if not super().has_change_permission(request, obj):
+            return False
+        if request.user.can_manage_companies() or obj is None:
+            return True
+        return obj.company_id == request.user.company_id
 
     def has_delete_permission(self, request, obj=None):
-        return request.user.can_manage_companies()
+        if not super().has_delete_permission(request, obj):
+            return False
+        if request.user.can_manage_companies() or obj is None:
+            return True
+        return obj.company_id == request.user.company_id
+
+    def save_model(self, request, obj, form, change):
+        if not request.user.can_manage_companies():
+            obj.company = request.user.company
+        super().save_model(request, obj, form, change)
 
 
 tenant_admin_site.register(TagLog, TenantScopedTagLogAdmin)

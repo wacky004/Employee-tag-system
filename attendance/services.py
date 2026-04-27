@@ -37,10 +37,10 @@ ALLOWED_MINUTES_FIELDS = {
     TagType.Category.BIO: "bio_minutes_allowed",
 }
 
-CATEGORY_CODE_MAP = {
-    "lunch": (TagType.Category.LUNCH, "LUNCH_OUT", "LUNCH_IN"),
-    "break": (TagType.Category.BREAK, "BREAK_OUT", "BREAK_IN"),
-    "bio": (TagType.Category.BIO, "BIO_OUT", "BIO_IN"),
+CATEGORY_KEYS = {
+    "lunch": TagType.Category.LUNCH,
+    "break": TagType.Category.BREAK,
+    "bio": TagType.Category.BIO,
 }
 
 
@@ -73,7 +73,7 @@ def build_daily_summary(employee, work_date):
         defaults["remarks"] = "No tag logs found for this work date."
         return defaults, []
 
-    settings = SystemSetting.objects.order_by("-updated_at").first()
+    settings = _get_system_settings(employee)
     open_intervals = {
         TagType.Category.LUNCH: None,
         TagType.Category.BREAK: None,
@@ -86,9 +86,7 @@ def build_daily_summary(employee, work_date):
 
     for log in logs:
         tag_type = log.tag_type
-        code = tag_type.code
-
-        if code == "TIME_IN":
+        if tag_type.category == TagType.Category.SHIFT and tag_type.direction == TagType.Direction.IN:
             if defaults["first_time_in"] is None:
                 defaults["first_time_in"] = log.timestamp
                 defaults["work_mode"] = log.work_mode
@@ -96,7 +94,7 @@ def build_daily_summary(employee, work_date):
             last_status = AttendanceSession.Status.WORKING
             continue
 
-        if code == "TIME_OUT":
+        if tag_type.category == TagType.Category.SHIFT and tag_type.direction == TagType.Direction.OUT:
             defaults["last_time_out"] = log.timestamp
             last_status = AttendanceSession.Status.OFF_DUTY
             continue
@@ -193,7 +191,7 @@ def create_employee_tag(employee, tag_code, work_date=None):
     if tag_code not in valid_codes:
         raise ValueError("This tagging action is not valid right now.")
 
-    tag_type = TagType.objects.filter(code=tag_code, is_active=True).first()
+    tag_type = _available_tag_types_queryset(employee.company).filter(code=tag_code, is_active=True).first()
     if tag_type is None:
         raise ValueError("The requested tag type is not configured.")
 
@@ -237,14 +235,19 @@ def get_employee_tagging_state(employee, work_date):
         .order_by("timestamp", "id")
     )
     session = AttendanceSession.objects.filter(employee=employee, work_date=work_date).first()
-    settings = SystemSetting.objects.order_by("-updated_at").first()
+    settings = _get_system_settings(employee)
+    effective_tag_map = TagType.effective_map_for_company(employee.company)
+    shift_in_tag = effective_tag_map.get((TagType.Category.SHIFT, TagType.Direction.IN))
+    shift_out_tag = effective_tag_map.get((TagType.Category.SHIFT, TagType.Direction.OUT))
     open_states = {"lunch": None, "break": None, "bio": None}
 
     for log in logs:
-        for key, (category, start_code, end_code) in CATEGORY_CODE_MAP.items():
-            if log.tag_type.code == start_code:
+        for key, category in CATEGORY_KEYS.items():
+            if log.tag_type.category != category:
+                continue
+            if log.tag_type.direction == TagType.Direction.OUT:
                 open_states[key] = log
-            elif log.tag_type.code == end_code:
+            elif log.tag_type.direction == TagType.Direction.IN:
                 open_states[key] = None
 
     active_entries = [(key, log) for key, log in open_states.items() if log is not None]
@@ -266,34 +269,44 @@ def get_employee_tagging_state(employee, work_date):
             cooldown_remaining_seconds = max(0, int((cooldown_end - timezone.now()).total_seconds()))
 
     valid_codes = []
-    if not logs:
-        valid_codes.append("TIME_IN")
-    elif has_time_out and not cooldown_active:
-        valid_codes.append("TIME_IN")
+    if not logs and shift_in_tag:
+        valid_codes.append(shift_in_tag.code)
+    elif has_time_out and not cooldown_active and shift_in_tag:
+        valid_codes.append(shift_in_tag.code)
     if has_time_in:
         if active_key:
-            valid_codes.append(CATEGORY_CODE_MAP[active_key][2])
+            active_end_tag = effective_tag_map.get((CATEGORY_KEYS[active_key], TagType.Direction.IN))
+            if active_end_tag:
+                valid_codes.append(active_end_tag.code)
         else:
-            valid_codes.append("TIME_OUT")
-            for key, (_, start_code, _end_code) in CATEGORY_CODE_MAP.items():
-                valid_codes.append(start_code)
+            if shift_out_tag:
+                valid_codes.append(shift_out_tag.code)
+            for category in CATEGORY_KEYS.values():
+                start_tag = effective_tag_map.get((category, TagType.Direction.OUT))
+                if start_tag:
+                    valid_codes.append(start_tag.code)
 
     controls = {}
     now = timezone.now()
-    for key, (category, start_code, end_code) in CATEGORY_CODE_MAP.items():
+    for key, category in CATEGORY_KEYS.items():
         allowed_minutes = _allowed_minutes_for_category(category, settings)
         consumed_minutes = _get_consumed_minutes(session, category)
         control_log = active_log if key == active_key else None
         active_elapsed = _duration_minutes(control_log.timestamp, now) if control_log else 0
-        control_code = end_code if control_log else start_code
+        start_tag = effective_tag_map.get((category, TagType.Direction.OUT))
+        end_tag = effective_tag_map.get((category, TagType.Direction.IN))
+        current_tag = end_tag if control_log else start_tag
+        if current_tag is None:
+            continue
         remaining_minutes = max(0, allowed_minutes - consumed_minutes - active_elapsed)
         controls[key] = {
             "key": key,
-            "label": key.title(),
-            "code": control_code,
-            "button_label": f"{key.title()} End" if control_log else f"{key.title()} Start",
+            "label": current_tag.name,
+            "category_label": key.title(),
+            "code": current_tag.code,
+            "button_label": current_tag.name,
             "active": bool(control_log),
-            "enabled": control_code in valid_codes,
+            "enabled": current_tag.code in valid_codes,
             "started_at": control_log.timestamp if control_log else None,
             "allowed_minutes": allowed_minutes,
             "consumed_minutes": consumed_minutes,
@@ -314,6 +327,8 @@ def get_employee_tagging_state(employee, work_date):
         "cooldown_active": cooldown_active,
         "cooldown_remaining_seconds": cooldown_remaining_seconds,
         "cooldown_hours": cooldown_hours,
+        "shift_in_tag": shift_in_tag,
+        "shift_out_tag": shift_out_tag,
     }
 
 
@@ -409,6 +424,15 @@ def _get_employee_profile(employee):
         return employee.employee_profile
     except ObjectDoesNotExist:
         return None
+
+
+def _get_system_settings(employee):
+    company = employee.company if getattr(employee, "company_id", None) else None
+    return SystemSetting.objects.filter(company=company).order_by("-updated_at", "-id").first()
+
+
+def _available_tag_types_queryset(company):
+    return TagType.active_for_company(company)
 
 
 def _get_consumed_minutes(session, category):

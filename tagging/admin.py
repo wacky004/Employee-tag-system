@@ -5,9 +5,9 @@ from .models import TagLog, TagType
 
 @admin.register(TagType)
 class TagTypeAdmin(admin.ModelAdmin):
-    list_display = ("code", "name", "category", "direction", "default_allowed_minutes", "is_active")
-    list_filter = ("category", "direction", "is_active")
-    search_fields = ("code", "name")
+    list_display = ("code", "name", "company", "category", "direction", "default_allowed_minutes", "is_active")
+    list_filter = ("company", "category", "direction", "is_active")
+    search_fields = ("code", "name", "company__name", "company__code")
 
 
 @admin.register(TagLog)

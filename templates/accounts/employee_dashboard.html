@@ -66,7 +66,7 @@
                 <div class="stat">{% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:"h:i:s A" }}{% else %}-{% endif %}</div>
                 <p>
                     <a
-                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_IN&requested_timestamp={% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time In"
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code={{ history_time_in_code }}&requested_timestamp={% if history_session and history_session.first_time_in %}{{ history_session.first_time_in|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time In"
                         class="button ghost"
                     >
                         Correct Time In
@@ -78,7 +78,7 @@
                 <div class="stat">{% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:"h:i:s A" }}{% else %}-{% endif %}</div>
                 <p>
                     <a
-                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code=TIME_OUT&requested_timestamp={% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time Out"
+                        href="{% url 'attendance:corrections' %}?target_work_date={{ history_start_date|date:'Y-m-d' }}&request_type=EDIT_LOG&action_type=CHANGE&tag_code={{ history_time_out_code }}&requested_timestamp={% if history_session and history_session.last_time_out %}{{ history_session.last_time_out|date:'Y-m-d\\TH:i' }}{% endif %}&reason=Need to correct Time Out"
                         class="button ghost"
                     >
                         Correct Time Out
